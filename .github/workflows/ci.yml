@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      # Auto-accept Gradle Build Scan ToS for CI runs
       GRADLE_OPTS: "-Dorg.gradle.daemon=false"
       GRADLE_TERMS_OF_SERVICE_ACCEPTED: "yes"
       GRADLE_TERMS_OF_SERVICE_URL: "https://gradle.com/terms-of-service"
@@ -27,15 +26,14 @@ jobs:
           java-version: '21'
           cache: gradle
 
+      - name: Ensure gradlew is executable
+        run: chmod +x ./gradlew
+
       - name: Verify Gradle wrapper
         uses: gradle/actions/wrapper-validation@v3
 
       - name: Build (tests included) + publish scan
         run: ./gradlew build --scan --no-daemon
-
-      # Optional: run 'check' if you later add static analysis plugins (checkstyle/spotless/etc.)
-      # - name: Run checks
-      #   run: ./gradlew check --no-daemon
 
       - name: Assemble bootable jar
         run: ./gradlew bootJar --no-daemon
