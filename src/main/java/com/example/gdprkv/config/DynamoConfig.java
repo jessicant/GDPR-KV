@@ -14,9 +14,9 @@ import java.net.URI;
 public class DynamoConfig {
     @Bean
     public DynamoDbClient dynamo(
-            @Value("${app.aws.region}") String region,
-            @Value("${app.aws.endpoint}") String endpoint,
-            @Value("${app.aws.use-localstack:true}") boolean useLocalstack) {
+            @Value("${server.aws.region}") String region,
+            @Value("${server.aws.endpoint}") String endpoint,
+            @Value("${server.aws.use-localstack:true}") boolean useLocalstack) {
         var builder = DynamoDbClient.builder().region(Region.of(region));
         if (useLocalstack) {
             builder.endpointOverride(URI.create(endpoint))
