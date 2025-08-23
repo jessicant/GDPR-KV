@@ -29,11 +29,29 @@ jobs:
       - name: Ensure gradlew is executable
         run: chmod +x ./gradlew
 
-      - name: Verify Gradle wrapper
-        uses: gradle/actions/wrapper-validation@v3
+      - name: Validate Gradle wrapper (IPv4, local checksum)
+        run: |
+          set -e
+          PROP_FILE="gradle/wrapper/gradle-wrapper.properties"
+          DIST_URL=$(grep '^distributionUrl=' "$PROP_FILE" | sed 's/distributionUrl=//')
+          SHA=$(grep '^distributionSha256Sum=' "$PROP_FILE" | sed 's/distributionSha256Sum=//')
 
-      # Robust build with retries (handles transient network hiccups)
-      - name: Build (tests included) with retry
+          echo "Distribution: $DIST_URL"
+          echo "Expected SHA256: $SHA"
+
+          # Download via IPv4 to avoid ENETUNREACH
+          curl -4 -L "$DIST_URL" -o gradle-dist.zip
+
+          ACTUAL=$(sha256sum gradle-dist.zip | awk '{print $1}')
+          echo "Actual SHA256: $ACTUAL"
+
+          if [ "$ACTUAL" != "$SHA" ]; then
+            echo "Gradle distribution checksum mismatch!"
+            exit 1
+          fi
+
+
+      - name: Build (tests included) with retry (IPv4)
         env:
           GRADLE_OPTS: "-Dorg.gradle.daemon=false -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false -Dhttps.protocols=TLSv1.2"
         run: |
