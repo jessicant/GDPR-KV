@@ -30,25 +30,42 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Validate Gradle wrapper (IPv4, local checksum)
+        shell: bash
         run: |
-          set -e
+          set -euo pipefail
           PROP_FILE="gradle/wrapper/gradle-wrapper.properties"
-          DIST_URL=$(grep '^distributionUrl=' "$PROP_FILE" | sed 's/distributionUrl=//')
-          SHA=$(grep '^distributionSha256Sum=' "$PROP_FILE" | sed 's/distributionSha256Sum=//')
 
+          # Extract and normalize the distribution URL (unescape '\:')
+          DIST_URL=$(grep '^distributionUrl=' "$PROP_FILE" | sed 's/^distributionUrl=//; s/\\:/:/g' | tr -d '\r')
           echo "Distribution: $DIST_URL"
+
+          # Try to read checksum from properties; may be empty
+          SHA=$(grep '^distributionSha256Sum=' "$PROP_FILE" | sed 's/^distributionSha256Sum=//; s/ //g' | tr -d '\r' || true)
+          if [ -z "${SHA:-}" ]; then
+            echo "No distributionSha256Sum found; downloading checksum..."
+            curl -4 -sSL "${DIST_URL}.sha256" -o gradle-dist.zip.sha256
+            # File format is usually: "<sha256>  gradle-9.0.0-bin.zip"
+            SHA=$(awk '{print $1}' gradle-dist.zip.sha256 | tr -d '\r')
+            if [ -z "$SHA" ]; then
+              echo "Could not obtain SHA256 for Gradle distribution."
+              exit 1
+            fi
+          fi
           echo "Expected SHA256: $SHA"
 
-          # Download via IPv4 to avoid ENETUNREACH
-          curl -4 -L "$DIST_URL" -o gradle-dist.zip
+          # Download the distribution via IPv4
+          curl -4 -sSL "$DIST_URL" -o gradle-dist.zip
 
+          # Compute and compare checksum
           ACTUAL=$(sha256sum gradle-dist.zip | awk '{print $1}')
-          echo "Actual SHA256: $ACTUAL"
-
+          echo "Actual SHA256:   $ACTUAL"
           if [ "$ACTUAL" != "$SHA" ]; then
             echo "Gradle distribution checksum mismatch!"
             exit 1
           fi
+
+          echo "Gradle wrapper validation passed."
+
 
 
       - name: Build (tests included) with retry (IPv4)
