@@ -2,3 +2,10 @@ app:
   env: local
 server:
   port: 8080
+  aws:
+    region: us-west-2
+    endpoint: http://localhost:4566   # LocalStack
+    use-localstack: true
+logging:
+  pattern:
+    level: "%5p [req:%X{requestId}]"
