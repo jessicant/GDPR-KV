@@ -1,18 +1,53 @@
-# Gradle
+# ----------------------------
+# Java / Gradle
+# ----------------------------
 .gradle/
 build/
+out/
 !gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
 
-# Local dev
-.localstack/
-.env
+# Logs
 *.log
+*.tmp
 
-# IDEs
+# IDEs and Editors
 .idea/
 *.iml
+*.ipr
+*.iws
 .vscode/
+*.class
 
-# OS
+# OS-specific
 .DS_Store
 Thumbs.db
+
+# ----------------------------
+# Spring Boot
+# ----------------------------
+# Local dev files
+*.env
+*.localstack/
+application-local.yml
+application-local.properties
+
+# ----------------------------
+# Docker
+# ----------------------------
+/.localstack/
+/docker-compose.override.yml
+
+# ----------------------------
+# Misc
+# ----------------------------
+# Archive/backup files
+*.zip
+*.tar
+*.tar.gz
+
+# Exclude test reports and coverage
+/test-output/
+/reports/
+/jacoco/
+
