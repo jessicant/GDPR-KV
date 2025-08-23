@@ -1,5 +1,8 @@
 # GDPR-Friendly Key–Value Store
 
+[![CI](https://github.com/jessicant/GDPR-KV/actions/workflows/ci.yml/badge.svg)](https://github.com/jessicant/GDPR-KV/actions/workflows/ci.yml)
+
+
 A backend key–value store implemented in **Java**, designed with **privacy and compliance by default**.  
 Built on top of **Amazon Web Services (AWS)**, it demonstrates how to design a system that enforces **GDPR principles** — including *data minimization, retention, erasure, auditability, and security-by-design*.
 
