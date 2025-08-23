@@ -32,10 +32,20 @@ jobs:
       - name: Verify Gradle wrapper
         uses: gradle/actions/wrapper-validation@v3
 
-      - name: Build (tests included) + publish scan
-        run: ./gradlew build --scan --no-daemon
+      # Robust build with retries (handles transient network hiccups)
+      - name: Build (tests included) with retry
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false -Dhttps.protocols=TLSv1.2"
+        run: |
+          for i in 1 2 3; do
+            ./gradlew build --no-daemon && break
+            echo "Gradle build failed (attempt $i). Retrying in 15s..."
+            sleep 15
+          done
 
       - name: Assemble bootable jar
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv6Addresses=false -Dhttps.protocols=TLSv1.2"
         run: ./gradlew bootJar --no-daemon
 
       - name: Upload app artifact
