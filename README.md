@@ -67,7 +67,7 @@ This inserts:
 - One tombstoned record that is already due for purge
 - Run the PurgeSweeper (manual invoke)
 
-Invoke the sweeper Lambda once:
+Invoke the sweeper Lambda once (NOT READY YET):
 ```bash
 awslocal lambda invoke --function-name purge-sweeper out.json && cat out.json
 ```
