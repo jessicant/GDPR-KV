@@ -127,9 +127,4 @@ Ensure-TableJson -TableName "audit_events" `
     @{ AttributeName = "event_id"; KeyType = "HASH" }
   )
 
-# 4) Seed policies (idempotent)
-Upsert-Policy -Purpose "auth"      -Days 365
-Upsert-Policy -Purpose "support"   -Days 180
-Upsert-Policy -Purpose "analytics" -Days 90
-
 Write-Host "All done."
