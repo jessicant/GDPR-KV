@@ -1,73 +1,95 @@
-# GDPR-Friendly Key–Value Store
+# GDPR-Friendly Key Value Store
 
-[![CI](https://github.com/jessicant/GDPR-KV/actions/workflows/ci.yml/badge.svg)](https://github.com/jessicant/GDPR-KV/actions/workflows/ci.yml)
-
-
-A backend key–value store implemented in **Java**, designed with **privacy and compliance by default**.  
-Built on top of **Amazon Web Services (AWS)**, it demonstrates how to design a system that enforces **GDPR principles** — including *data minimization, retention, erasure, auditability, and security-by-design*.
-
----
+A subject-centric layer on DynamoDB that adds GDPR-oriented behaviors: right to erasure, strict retention, and a tamper-evident audit trail.
 
 ## Features
-- **Key–Value API** – simple CRUD with versioning and per-record TTLs.  
-- **Purpose-based retention policies** – every record is tagged with a `purpose` (e.g., `auth`, `analytics`) and automatically expires via DynamoDB TTLs.  
-- **Right to Erasure** – data subject records can be erased end-to-end using asynchronous purge workflows.  
-- **Right to Access/Portability** – export all records for a subject as a signed JSON bundle.  
-- **Immutable Audit Logging** – audit events written to DynamoDB Streams and archived in S3 for tamper-resistant storage.  
-- **Data Residency Enforcement** – subjects carry residency metadata (e.g., `EU`, `US`) and reads/writes are routed to the correct AWS region.  
-- **Encryption-first design** – records encrypted with AWS KMS; optional per-subject keys for crypto-erasure.  
+
+- **Subject-Centric Mapping** – enumerate all records for a data subject.
+- **Right to Erasure** – immediate read suppression (tombstone) plus background purge.
+- **Retention Enforcement** – deletes occur when retention expires (not best-effort TTL).
+- **Audit Trail** – append-only, hash-chained events for create, read, update, delete, and purge.
+- **Efficient Purging** – GSI `records_by_purge_due` uses `purge_bucket` (UTC hour shard) and `purge_due_at` to avoid scans or hot partitions.
+
+## Architecture
+
+Tables:
+- `subjects` – subject metadata (existence, residency, erasure flags).
+- `policies` – purpose → retention mapping.
+- `records` – per-subject items; includes `tombstoned`, `purge_due_at`, `purge_bucket`.
+- `audit_events` – append-only, tamper-evident audit log.
+
+Index:
+- `records_by_purge_due` (GSI):
+    - Partition key = `purge_bucket`
+    - Sort key = `purge_due_at`
+    - Sparse (only set for tombstoned records)
 
 ---
 
-## Tech Stack
-- **Language:** Java 21 + Spring Boot 3  
-- **Storage:** Amazon DynamoDB (primary KV, subjects, policies), DynamoDB TTL for record expiration  
-- **Audit:** DynamoDB Streams → Amazon S3 (immutable WORM logs)  
-- **Encryption:** AWS KMS (envelope encryption, optional per-subject keys)  
-- **Infra:** Docker + LocalStack for local development  
-- **API:** REST + OpenAPI spec  
-- **Logging:** Structured JSON logs + per-request IDs  
+## Local Development
 
----
+### Prerequisites
+- Docker Desktop
+- AWS CLI (and optionally [`awslocal`](https://github.com/localstack/awscli-local))
 
-## Getting Started
-
+### Start LocalStack
 ```bash
-# Clone repo
-git clone https://github.com/yourname/gdpr-kv.git
-cd gdpr-kv
-
-# Start LocalStack (DynamoDB) + admin UI
 docker compose up -d
-
-# Create tables and seed default policies
-./scripts/init_tables.sh
-
-# Run the app
-./gradlew bootRun
-
-# Create a subject
-curl -X POST http://localhost:8080/subjects \
-  -H "Content-Type: application/json" \
-  -d '{"residency":"eu","identifiers":{"email":"alice@example.com"}}'
-
-# Store a record
-curl -X PUT http://localhost:8080/kv/{subject_id}/profile:city \
-  -H "Content-Type: application/json" \
-  -d '{"value":{"city":"Berlin"}, "purpose":"support"}'
-
 ```
-## Why this project?
+### Initialize Tables
+Run the provided script:
+```bash
+./scripts/init_tables.sh
+```
+Windows PowerShell:
+```
+./scripts/init_tables.ps1
+```
 
-Handling personal data in distributed systems requires compliance-aware design.
-This project demonstrates how GDPR features such as Right to Erasure, Right to Access, and purpose-based retention can be implemented using AWS primitives.
+This creates the following DynamoDB tables in LocalStack:
+- `subjects`
+- `policies`
+- `records` (with GSI `records_by_purge_due`)
+- `audit_events`
 
-It also serves as a portfolio project, highlighting backend engineering skills in:
-- Java + Spring Boot development
-- AWS-native backend design (DynamoDB, KMS, S3, Streams)
-- Data lifecycle management at scale
+### Seed Demo Data
+```bash
+./scripts/seed_demo.sh
+```
+Windows Powershell:
+```bash
+./scripts/seed_demo.ps1
+```
 
-## Disclaimer
-This project is for **educational and demonstration purposes only.**
+This inserts:
+- One subject
+- One policy
+- One tombstoned record that is already due for purge
+- Run the PurgeSweeper (manual invoke)
 
-It is **not production-ready** and should not be used to store real personal data.
+Invoke the sweeper Lambda once:
+```bash
+awslocal lambda invoke --function-name purge-sweeper out.json && cat out.json
+```
+
+You should see a JSON summary with the number of records deleted.
+
+### Verify Results
+Check that the record is gone:
+```bash
+awslocal dynamodb get-item \
+  --table-name records \
+  --key '{"subject_id":{"S":"sub_demo"},"record_key":{"S":"pref:email"}}'
+```
+
+Query the audit log to confirm purge events:
+```bash
+awslocal dynamodb query \
+  --table-name audit_events \
+  --key-condition-expression "subject_id=:s" \
+  --expression-attribute-values '{":s":{"S":"sub_demo"}}' \
+  --scan-index-forward false
+```
+
+### Documentation
+The full design (deatiled flows, API shapes, and low-level sweeper design lives here): doc/design.md
