@@ -92,4 +92,4 @@ awslocal dynamodb query \
 ```
 
 ### Documentation
-The full design (deatiled flows, API shapes, and low-level sweeper design lives here): doc/design.md
+The full design (deatiled flows, API shapes, and low-level sweeper design lives here): [Design Document](./doc/design.md)
