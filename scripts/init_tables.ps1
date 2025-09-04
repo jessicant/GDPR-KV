@@ -38,7 +38,8 @@ function Ensure-TableJson {
   param(
     [string]$TableName,
     [array]$AttributeDefinitions, # @(@{AttributeName="..."; AttributeType="S"}, ...)
-    [array]$KeySchema             # @(@{AttributeName="..."; KeyType="HASH"}, @{...; KeyType="RANGE"})
+    [array]$KeySchema,            # @(@{AttributeName="..."; KeyType="HASH"}, @{...; KeyType="RANGE"})
+    [array]$GlobalSecondaryIndexes # optional: array of GSI specs (or $null)
   )
 
   if (Test-TableExists $TableName) {
@@ -55,10 +56,13 @@ function Ensure-TableJson {
     KeySchema            = $KeySchema
   }
 
+  if ($GlobalSecondaryIndexes -and $GlobalSecondaryIndexes.Count -gt 0) {
+    $req.GlobalSecondaryIndexes = $GlobalSecondaryIndexes
+  }
+
   # Write compact JSON to a temp file to avoid quoting/escaping issues
-  $json = $req | ConvertTo-Json -Depth 6 -Compress
+  $json = $req | ConvertTo-Json -Depth 10 -Compress
   $tmp  = New-TemporaryFile
-  # Use ASCII/UTF8 without BOM to avoid BOM issues
   [System.IO.File]::WriteAllText($tmp.FullName, $json, (New-Object System.Text.UTF8Encoding($false)))
 
   try {
@@ -70,26 +74,10 @@ function Ensure-TableJson {
   }
 }
 
-function Upsert-Policy {
-  param([string]$Purpose, [int]$Days)
-  $item = @{
-    purpose        = @{ S = "$Purpose" }
-    retention_days = @{ N = "$Days" }
-  }
-  $json = $item | ConvertTo-Json -Depth 4 -Compress
-  $tmp  = New-TemporaryFile
-  [System.IO.File]::WriteAllText($tmp.FullName, $json, (New-Object System.Text.UTF8Encoding($false)))
-  try {
-    awsLocal dynamodb put-item --table-name policies --item ("file://{0}" -f $tmp.FullName) 1>$null
-    Write-Host "Seeded policy: $Purpose = $Days days"
-  } finally {
-    Remove-Item $tmp.FullName -ErrorAction SilentlyContinue
-  }
-}
-
 # 3) Create tables
 
-# subjects: HASH = subject_id
+# subjects: PK = subject_id (S)
+# Attributes (at write-time): created_at (N), residency (S), erasure_in_progress (BOOL), erasure_requested_at (N), version (N)
 Ensure-TableJson -TableName "subjects" `
   -AttributeDefinitions @(
     @{ AttributeName = "subject_id"; AttributeType = "S" }
@@ -98,7 +86,8 @@ Ensure-TableJson -TableName "subjects" `
     @{ AttributeName = "subject_id"; KeyType = "HASH" }
   )
 
-# policies: HASH = purpose
+# policies: PK = purpose (S)
+# Attributes: retention_days (N), description (S), last_updated_at (N)
 Ensure-TableJson -TableName "policies" `
   -AttributeDefinitions @(
     @{ AttributeName = "purpose"; AttributeType = "S" }
@@ -107,24 +96,52 @@ Ensure-TableJson -TableName "policies" `
     @{ AttributeName = "purpose"; KeyType = "HASH" }
   )
 
-# records: HASH = subject_id, RANGE = sort_key
+# records: PK = subject_id (S), SK = record_key (S)
+# Attributes (at write-time): purpose (S), value (S|M), version (N), created_at (N), updated_at (N),
+#   tombstoned (BOOL), tombstoned_at (N), retention_days (N), purge_due_at (N), purge_bucket (S), request_id (S)
+# GSI records_by_purge_due: PK = purge_bucket (S), SK = purge_due_at (N), Projection: KEYS_ONLY (or minimal)
+$recordsAttributeDefs = @(
+  @{ AttributeName = "subject_id";   AttributeType = "S" },
+  @{ AttributeName = "record_key";   AttributeType = "S" },
+  @{ AttributeName = "purge_bucket"; AttributeType = "S" }, # for GSI PK
+  @{ AttributeName = "purge_due_at"; AttributeType = "N" }  # for GSI SK
+)
+
+$recordsKeySchema = @(
+  @{ AttributeName = "subject_id"; KeyType = "HASH"  },
+  @{ AttributeName = "record_key"; KeyType = "RANGE" }
+)
+
+$recordsGsi = @(
+  @{
+    IndexName = "records_by_purge_due"
+    KeySchema = @(
+      @{ AttributeName = "purge_bucket"; KeyType = "HASH"  },
+      @{ AttributeName = "purge_due_at"; KeyType = "RANGE" }
+    )
+    Projection = @{
+      ProjectionType = "KEYS_ONLY"
+    }
+  }
+)
+
 Ensure-TableJson -TableName "records" `
+  -AttributeDefinitions $recordsAttributeDefs `
+  -KeySchema $recordsKeySchema `
+  -GlobalSecondaryIndexes $recordsGsi
+
+# audit_events: PK = subject_id (S), SK = ts_ulid (S)
+# Attributes: event_type (S), request_id (S), item_key (S, optional), purpose (S, optional),
+#   timestamp (N), details (M), prev_hash (S), hash (S)
+Ensure-TableJson -TableName "audit_events" `
   -AttributeDefinitions @(
     @{ AttributeName = "subject_id"; AttributeType = "S" },
-    @{ AttributeName = "sort_key";   AttributeType = "S" }
+    @{ AttributeName = "ts_ulid";    AttributeType = "S" }
   ) `
   -KeySchema @(
     @{ AttributeName = "subject_id"; KeyType = "HASH"  },
-    @{ AttributeName = "sort_key";   KeyType = "RANGE" }
+    @{ AttributeName = "ts_ulid";    KeyType = "RANGE" }
   )
 
-# audit_events: HASH = event_id
-Ensure-TableJson -TableName "audit_events" `
-  -AttributeDefinitions @(
-    @{ AttributeName = "event_id"; AttributeType = "S" }
-  ) `
-  -KeySchema @(
-    @{ AttributeName = "event_id"; KeyType = "HASH" }
-  )
+Write-Host "All tables created / verified."
 
-Write-Host "All done."
