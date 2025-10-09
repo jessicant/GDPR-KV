@@ -1,5 +1,6 @@
 plugins {
     java
+    checkstyle
     id("org.springframework.boot") version "3.3.2"
     id("io.spring.dependency-management") version "1.1.6"
 }
@@ -36,6 +37,15 @@ dependencies {
 }
 
 tasks.test { useJUnitPlatform() }
+
+checkstyle {
+    toolVersion = "10.17.0"
+    configDirectory.set(layout.projectDirectory.dir("config/checkstyle"))
+}
+
+tasks.named("check") {
+    dependsOn("checkstyleMain", "checkstyleTest")
+}
 
 
 springBoot {

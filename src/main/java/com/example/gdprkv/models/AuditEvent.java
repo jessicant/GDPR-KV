@@ -3,6 +3,10 @@ package com.example.gdprkv.models;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Collections;
+import java.util.Map;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -15,11 +19,6 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbConvertedBy;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSortKey;
-
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.util.Collections;
-import java.util.Map;
 
 @JsonInclude(Include.NON_NULL)
 @DynamoDbBean
@@ -116,7 +115,9 @@ public class AuditEvent {
         @JsonCreator
         public static EventType fromString(String v) {
             for (EventType t : values()) {
-                if (t.name().equals(v)) return t;
+                if (t.name().equals(v)) {
+                    return t;
+                }
             }
             throw new IllegalArgumentException("Unknown AuditEvent.EventType: " + v);
         }
