@@ -29,7 +29,9 @@ class SubjectTest {
 
     private static String readFixture(String path) throws IOException {
         try (InputStream in = SubjectTest.class.getResourceAsStream(path)) {
-            if (in == null) throw new IllegalStateException("Missing test fixture: " + path);
+            if (in == null) {
+                throw new IllegalStateException("Missing test fixture: " + path);
+            }
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
     }

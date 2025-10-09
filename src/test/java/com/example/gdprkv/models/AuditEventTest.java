@@ -9,9 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.PropertyNamingStrategies;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.exc.ValueInstantiationException;
-
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -32,7 +31,9 @@ class AuditEventTest {
 
     private static String readFixture(String path) throws Exception {
         try (InputStream in = AuditEventTest.class.getResourceAsStream(path)) {
-            if (in == null) throw new IllegalStateException("Missing test fixture: " + path);
+            if (in == null) {
+                throw new IllegalStateException("Missing test fixture: " + path);
+            }
             return new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
     }
@@ -183,17 +184,17 @@ class AuditEventTest {
     @DisplayName("Enum validation: unknown value throws during deserialization")
     void enumValidationUnknownThrows() {
         String json = """
-        {
-          "subject_id":"s",
-          "ts_ulid":"1_01HABCDEFGABCDEFGABCDEFG",
-          "event_type":"SOMETHING_UNKNOWN",
-          "request_id":"r",
-          "timestamp":1,
-          "details":{"status":"X"},
-          "prev_hash":"00",
-          "hash":"11"
-        }
-        """;
+            {
+              "subject_id":"s",
+              "ts_ulid":"1_01HABCDEFGABCDEFGABCDEFG",
+              "event_type":"SOMETHING_UNKNOWN",
+              "request_id":"r",
+              "timestamp":1,
+              "details":{"status":"X"},
+              "prev_hash":"00",
+              "hash":"11"
+            }
+            """;
 
         ValueInstantiationException ex =
                 assertThrows(ValueInstantiationException.class, () -> MAPPER.readValue(json, AuditEvent.class));
