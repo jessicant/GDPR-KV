@@ -75,7 +75,7 @@ Windows Powershell:
 ./scripts/seed_demo.ps1
 ```
 
-> Tip: If you already have credentials or use `awslocal`, the scripts honour whatever is in your environment.
+> Tip: If you already have credentials or use `awslocal`, the scripts honor whatever is in your environment.
 
 This inserts:
 - One subject (`demo_subject_001`)
