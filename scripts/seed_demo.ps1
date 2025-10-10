@@ -1,92 +1,50 @@
+#!/usr/bin/env pwsh
 param(
-  [string]$Region   = "us-west-2",
-  [string]$Endpoint = "http://localhost:4566"
+    [string]$Region = "us-west-2",
+    [string]$Endpoint = "http://localhost:4566"
 )
 
-$ErrorActionPreference = "Stop"
+$subjectId = "demo_subject_001"
+$recordKey = "pref:email"
+$purpose = "DEMO_PURPOSE"
+$requestId = "seed-demo"
+$retentionDays = 1
 
-function awsLocal {
-  param([Parameter(ValueFromRemainingArguments = $true)]$Args)
-  aws --endpoint-url $Endpoint --region $Region @Args
-}
+$millisPerDay = 86400000
+$now = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+$tombstonedAt = $now - (($retentionDays + 1) * $millisPerDay)
+$purgeDueAt = $tombstonedAt + ($retentionDays * $millisPerDay)
+$purgeBucket = [DateTimeOffset]::FromUnixTimeMilliseconds($purgeDueAt).ToString("'h#'yyyyMMdd'T'HH")
 
-function Write-TempJson {
-  param([hashtable]$Obj)
-  $json = $Obj | ConvertTo-Json -Depth 10 -Compress
-  $tmp  = New-TemporaryFile
-  [System.IO.File]::WriteAllText(
-    $tmp.FullName,
-    $json,
-    (New-Object System.Text.UTF8Encoding($false)) # UTF-8, no BOM
-  )
-  return $tmp
-}
+Write-Host "Seeding demo data into $Endpoint (region $Region)"
 
-Write-Host "Seeding demo data against $Endpoint (region $Region)"
+aws --endpoint-url $Endpoint --region $Region dynamodb put-item --table-name subjects --item @""{
+  "subject_id": {"S": "$subjectId"},
+  "created_at": {"N": "$tombstonedAt"},
+  "version": {"N": "1"}
+}""@
 
-# --------------------------------------------------------------------
-# Demo values
-# --------------------------------------------------------------------
-$SubjectId    = "demo-subject-0001"
-$Purpose      = "demo"          # Keep separate from your default 'analytics/support/auth'
-$RetentionDays= 1               # Small so old tombstones are clearly due for purge
-$CreatedIso   = "2020-01-01T00:00:00Z"  # Old date to ensure past-due
-$UpdatedIso   = $CreatedIso
-$DueEpoch     = 0               # Jan 1, 1970 => definitely due
-$SortKey      = "record#$CreatedIso#v1"
+aws --endpoint-url $Endpoint --region $Region dynamodb put-item --table-name policies --item @""{
+  "purpose": {"S": "$purpose"},
+  "retention_days": {"N": "$retentionDays"},
+  "description": {"S": "Demo retention policy"},
+  "last_updated_at": {"N": "$tombstonedAt"}
+}""@
 
-# --------------------------------------------------------------------
-# 1) Subject (subjects: HASH = subject_id)
-# --------------------------------------------------------------------
-$subjectItem = @{
-  subject_id = @{ S = $SubjectId }
-  created_at = @{ S = $CreatedIso }
-}
-$tmp = Write-TempJson -Obj $subjectItem
-try {
-  awsLocal dynamodb put-item --table-name subjects --item ("file://{0}" -f $tmp.FullName) 1>$null
-  Write-Host "Seeded subject: $SubjectId"
-} finally {
-  Remove-Item $tmp.FullName -ErrorAction SilentlyContinue
-}
+aws --endpoint-url $Endpoint --region $Region dynamodb put-item --table-name records --item @""{
+  "subject_id": {"S": "$subjectId"},
+  "record_key": {"S": "$recordKey"},
+  "purpose": {"S": "$purpose"},
+  "value": {"S": "{\"email\":\"demo@example.com\"}"},
+  "created_at": {"N": "$tombstonedAt"},
+  "updated_at": {"N": "$tombstonedAt"},
+  "version": {"N": "1"},
+  "tombstoned": {"BOOL": true},
+  "tombstoned_at": {"N": "$tombstonedAt"},
+  "retention_days": {"N": "$retentionDays"},
+  "purge_due_at": {"N": "$purgeDueAt"},
+  "purge_bucket": {"S": "$purgeBucket"},
+  "request_id": {"S": "$requestId"}
+}""@
 
-# --------------------------------------------------------------------
-# 2) Single Policy (policies: HASH = purpose)
-# --------------------------------------------------------------------
-$policyItem = @{
-  purpose        = @{ S = $Purpose }
-  retention_days = @{ N = "$RetentionDays" }
-  created_at     = @{ S = $CreatedIso }
-}
-$tmp = Write-TempJson -Obj $policyItem
-try {
-  awsLocal dynamodb put-item --table-name policies --item ("file://{0}" -f $tmp.FullName) 1>$null
-  Write-Host "Seeded policy: $Purpose (retention_days=$RetentionDays)"
-} finally {
-  Remove-Item $tmp.FullName -ErrorAction SilentlyContinue
-}
-
-# --------------------------------------------------------------------
-# 3) Tombstoned record already due for purge (records: HASH = subject_id, RANGE = sort_key)
-#    Fields kept minimal; add more as your app expects.
-# --------------------------------------------------------------------
-$recordItem = @{
-  subject_id          = @{ S = $SubjectId }
-  sort_key            = @{ S = $SortKey }
-  purpose             = @{ S = $Purpose }
-  version             = @{ N = "1" }
-  tombstoned          = @{ BOOL = $true }
-  created_at          = @{ S = $CreatedIso }
-  updated_at          = @{ S = $UpdatedIso }
-  due_for_purge_epoch = @{ N = "$DueEpoch" }
-  data                = @{ M = @{ note = @{ S = "example payload removed" } } } # optional
-}
-$tmp = Write-TempJson -Obj $recordItem
-try {
-  awsLocal dynamodb put-item --table-name records --item ("file://{0}" -f $tmp.FullName) 1>$null
-  Write-Host "Seeded tombstoned record for $SubjectId (due_for_purge=$DueEpoch)"
-} finally {
-  Remove-Item $tmp.FullName -ErrorAction SilentlyContinue
-}
-
-Write-Host "Demo seeding complete."
+Write-Host "Seed complete. Purge bucket: $purgeBucket"

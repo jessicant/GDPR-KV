@@ -55,33 +55,41 @@ This creates the following DynamoDB tables in LocalStack:
 - `audit_events`
 
 ### Seed Demo Data
+Export LocalStack credentials once per shell (they can be anything, `test` is conventional):
+```bash
+export AWS_ACCESS_KEY_ID=test
+export AWS_SECRET_ACCESS_KEY=test
+```
+PowerShell:
+```powershell
+$env:AWS_ACCESS_KEY_ID = "test"
+$env:AWS_SECRET_ACCESS_KEY = "test"
+```
+
+Then run the seed script:
 ```bash
 ./scripts/seed_demo.sh
 ```
 Windows Powershell:
-```bash
+```powershell
 ./scripts/seed_demo.ps1
 ```
 
+> Tip: If you already have credentials or use `awslocal`, the scripts honour whatever is in your environment.
+
 This inserts:
-- One subject
-- One policy
-- One tombstoned record that is already due for purge
-- Run the PurgeSweeper (manual invoke)
+- One subject (`demo_subject_001`)
+- One policy for purpose `DEMO_PURPOSE`
+- One tombstoned record whose `purge_due_at` is already in the past
 
-Invoke the sweeper Lambda once (NOT READY YET):
-```bash
-awslocal lambda invoke --function-name purge-sweeper out.json && cat out.json
-```
-
-You should see a JSON summary with the number of records deleted.
+The script prints the computed `purge_bucket` so you can confirm the sweeper will target it immediately.
 
 ### Verify Results
 Check that the record is gone:
 ```bash
 awslocal dynamodb get-item \
   --table-name records \
-  --key '{"subject_id":{"S":"sub_demo"},"record_key":{"S":"pref:email"}}'
+  --key '{"subject_id":{"S":"demo_subject_001"},"record_key":{"S":"pref:email"}}'
 ```
 
 Query the audit log to confirm purge events:
@@ -89,7 +97,7 @@ Query the audit log to confirm purge events:
 awslocal dynamodb query \
   --table-name audit_events \
   --key-condition-expression "subject_id=:s" \
-  --expression-attribute-values '{":s":{"S":"sub_demo"}}' \
+  --expression-attribute-values '{":s":{"S":"demo_subject_001"}}' \
   --scan-index-forward false
 ```
 
