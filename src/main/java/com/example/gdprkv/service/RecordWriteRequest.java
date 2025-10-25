@@ -1,6 +1,7 @@
 package com.example.gdprkv.service;
 
 import java.util.Objects;
+import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
@@ -13,6 +14,14 @@ public record RecordWriteRequest(
         Long tombstonedAt,
         String requestId
 ) {
+
+    public RecordWriteRequest(String subjectId,
+                              String recordKey,
+                              String purpose,
+                              JsonNode value) {
+        this(subjectId, recordKey, purpose, value, false, null, null);
+    }
+
     public RecordWriteRequest {
         Objects.requireNonNull(subjectId, "subjectId");
         if (subjectId.isBlank()) {
@@ -29,9 +38,6 @@ public record RecordWriteRequest(
             throw new IllegalArgumentException("purpose must be non-blank");
         }
 
-        Objects.requireNonNull(requestId, "requestId");
-        if (requestId.isBlank()) {
-            throw new IllegalArgumentException("requestId must be non-blank");
-        }
+        requestId = (requestId == null || requestId.isBlank()) ? UUID.randomUUID().toString() : requestId;
     }
 }

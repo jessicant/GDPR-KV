@@ -66,7 +66,7 @@ $env:AWS_ACCESS_KEY_ID = "test"
 $env:AWS_SECRET_ACCESS_KEY = "test"
 ```
 
-Then run the seed script:
+Then run the seed script (creates the demo subject and policy `DEMO_PURPOSE`):
 ```bash
 ./scripts/seed_demo.sh
 ```
@@ -77,12 +77,42 @@ Windows Powershell:
 
 > Tip: If you already have credentials or use `awslocal`, the scripts honor whatever is in your environment.
 
-This inserts:
-- One subject (`demo_subject_001`)
-- One policy for purpose `DEMO_PURPOSE`
-- One tombstoned record whose `purge_due_at` is already in the past
+### Put a Record (via API)
+Once the demo data is seeded you can write a record through the API:
 
-The script prints the computed `purge_bucket` so you can confirm the sweeper will target it immediately.
+1. Start the Spring Boot API locally (default port 8080):
+   ```bash
+   ./gradlew bootRun
+   ```
+   Leave this running in a terminal.
+
+2. With LocalStack and the app running, issue the request:
+
+```bash
+curl -X PUT \
+  -H "Content-Type: application/json" \
+  http://localhost:8080/subjects/demo_subject_001/records/pref:email \
+  -d '{
+    "purpose": "DEMO_PURPOSE",
+    "value": { "email": "demo@example.com" }
+  }'
+```
+
+Sample response:
+```json
+{
+  "subject_id": "demo_subject_001",
+  "record_key": "pref:email",
+  "purpose": "DEMO_PURPOSE",
+  "value": { "email": "demo@example.com" },
+  "version": 2,
+  "created_at": 1761258574353,
+  "updated_at": 1761431775441,
+  "retention_days": 1
+}
+```
+
+The server generates an `X-Request-Id` (for audit and traceability) and returns it in the response headers; the JSON payload contains only the record fields.
 
 ### Verify Results
 Check that the record is gone:

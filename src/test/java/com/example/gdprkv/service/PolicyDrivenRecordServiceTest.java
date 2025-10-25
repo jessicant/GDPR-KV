@@ -47,10 +47,7 @@ class PolicyDrivenRecordServiceTest {
                 "sub_1",
                 "pref:email",
                 "FULFILLMENT",
-                MAPPER.readTree("{\"email\":\"demo@example.com\"}"),
-                false,
-                null,
-                "req-1"
+                MAPPER.readTree("{\"email\":\"demo@example.com\"}")
         );
 
         Record saved = service.putRecord(request);
@@ -63,7 +60,7 @@ class PolicyDrivenRecordServiceTest {
         assertEquals(clock.millis(), saved.getUpdatedAt());
         assertEquals(1L, saved.getVersion());
         assertFalse(saved.getTombstoned());
-        assertEquals("req-1", saved.getRequestId());
+        assertFalse(saved.getRequestId() == null || saved.getRequestId().isBlank());
         assertNotNull(recordAccess.findBySubjectIdAndRecordKey("sub_1", "pref:email"));
     }
 
@@ -93,7 +90,7 @@ class PolicyDrivenRecordServiceTest {
                 MAPPER.readTree("{\"enabled\":false}"),
                 true,
                 null,
-                "req-2"
+                null
         );
 
         Record saved = service.putRecord(request);
@@ -114,10 +111,7 @@ class PolicyDrivenRecordServiceTest {
                 "sub_3",
                 "pref:email",
                 "UNKNOWN",
-                MAPPER.readTree("{}"),
-                false,
-                null,
-                "req-3"
+                MAPPER.readTree("{}")
         );
 
         GdprKvException ex = assertThrows(GdprKvException.class, () -> service.putRecord(request));

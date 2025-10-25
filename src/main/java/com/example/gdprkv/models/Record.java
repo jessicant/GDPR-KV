@@ -17,7 +17,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.NonNull;
 import lombok.Setter;
-import software.amazon.awssdk.enhanced.dynamodb.extensions.annotations.DynamoDbVersionAttribute;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbAttribute;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbConvertedBy;
@@ -96,7 +95,6 @@ public class Record {
     @DynamoDbAttribute("updated_at")
     public Long getUpdatedAt() { return updatedAt; }
 
-    @DynamoDbVersionAttribute
     @DynamoDbAttribute("version")
     public Long getVersion() { return version; }
 

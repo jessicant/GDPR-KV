@@ -1,6 +1,8 @@
 package com.example.gdprkv.service;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,12 +41,20 @@ class RecordWriteRequestTest {
     }
 
     @Test
-    @DisplayName("requestId validation rejects null/blank")
-    void requestIdValidation() {
-        assertThrows(NullPointerException.class, () -> new RecordWriteRequest(
-                "sub", "key", "PURPOSE", MAPPER.createObjectNode(), false, null, null));
-        assertThrows(IllegalArgumentException.class, () -> new RecordWriteRequest(
-                "sub", "key", "PURPOSE", MAPPER.createObjectNode(), false, null, "  "));
+    @DisplayName("requestId auto-generates when null or blank")
+    void requestIdAutoGeneration() {
+        RecordWriteRequest fromNull = new RecordWriteRequest(
+                "sub", "key", "PURPOSE", MAPPER.createObjectNode(), false, null, null);
+        RecordWriteRequest fromBlank = new RecordWriteRequest(
+                "sub", "key", "PURPOSE", MAPPER.createObjectNode(), false, null, "  ");
+
+        assertDoesNotThrow(() -> new RecordWriteRequest(
+                "sub", "key", "PURPOSE", MAPPER.createObjectNode(), false, null, "explicit"));
+
+        assertNotNull(fromNull.requestId());
+        assertFalse(fromNull.requestId().isBlank());
+        assertNotNull(fromBlank.requestId());
+        assertFalse(fromBlank.requestId().isBlank());
     }
 
     @Test

@@ -22,14 +22,13 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0")
     implementation("software.amazon.awssdk:dynamodb-enhanced")
+    implementation("org.apache.commons:commons-lang3:3.16.0")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test") {
         exclude(group = "org.junit.vintage")
     }
 
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-    developmentOnly("org.springframework.boot:spring-boot-devtools")
-
     compileOnly("org.projectlombok:lombok:1.18.34")
     annotationProcessor("org.projectlombok:lombok:1.18.34")
     testCompileOnly("org.projectlombok:lombok:1.18.34")

@@ -43,24 +43,12 @@ aws_local() {
   aws --endpoint-url "$ENDPOINT" --region "$REGION" "$@"
 }
 
-eval "$(python3 <<'PY'
-import datetime, os, time
-MILLIS_PER_DAY = 86400000
-retention_days = int(os.environ.get('RETENTION_DAYS', '1'))
-now_ms = int(time.time() * 1000)
-tombstoned_at = now_ms - ((retention_days + 1) * MILLIS_PER_DAY)
-purge_due_at = tombstoned_at + retention_days * MILLIS_PER_DAY
-bucket = datetime.datetime.fromtimestamp(purge_due_at/1000, tz=datetime.timezone.utc).strftime('h#%Y%m%dT%H')
-print(f"TOMBSTONE_MILLIS={tombstoned_at}")
-print(f"PURGE_DUE_AT={purge_due_at}")
-print(f"PURGE_BUCKET='{bucket}'")
+created_at=$(python3 - <<'PY'
+import time
+print(int(time.time() * 1000))
 PY
-)"
-
-created_at="$TOMBSTONE_MILLIS"
-updated_at="$TOMBSTONE_MILLIS"
-purge_due_at="$PURGE_DUE_AT"
-purge_bucket="$PURGE_BUCKET"
+)
+updated_at="$created_at"
 
 printf 'Seeding demo data into %s (region %s)\n' "$ENDPOINT" "$REGION"
 
@@ -83,27 +71,7 @@ policy_item=$(cat <<JSON
 JSON
 )
 
-record_item=$(cat <<JSON
-{
-  "subject_id": {"S": "$SUBJECT_ID"},
-  "record_key": {"S": "$RECORD_KEY"},
-  "purpose": {"S": "$PURPOSE"},
-  "value": {"S": "{\\"email\\":\\"demo@example.com\\"}"},
-  "created_at": {"N": "$created_at"},
-  "updated_at": {"N": "$updated_at"},
-  "version": {"N": "1"},
-  "tombstoned": {"BOOL": true},
-  "tombstoned_at": {"N": "$TOMBSTONE_MILLIS"},
-  "retention_days": {"N": "$RETENTION_DAYS"},
-  "purge_due_at": {"N": "$purge_due_at"},
-  "purge_bucket": {"S": "$purge_bucket"},
-  "request_id": {"S": "$REQUEST_ID"}
-}
-JSON
-)
-
 aws_local dynamodb put-item --table-name subjects --item "$subject_item"
 aws_local dynamodb put-item --table-name policies --item "$policy_item"
-aws_local dynamodb put-item --table-name records --item "$record_item"
 
-printf 'Seed complete. Purge bucket: %s\n' "$purge_bucket"
+printf 'Seed complete. Policy purpose seeded: %s\n' "$PURPOSE"
