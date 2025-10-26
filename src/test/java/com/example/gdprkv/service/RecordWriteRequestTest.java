@@ -61,6 +61,6 @@ class RecordWriteRequestTest {
     @DisplayName("valid request passes validation")
     void happyPath() {
         assertDoesNotThrow(() -> new RecordWriteRequest(
-                "sub", "key", "PURPOSE", MAPPER.createObjectNode(), false, null, "req"));
+                "sub", "key", "PURPOSE", MAPPER.createObjectNode()));
     }
 }

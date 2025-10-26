@@ -17,7 +17,7 @@ usage() {
   cat <<'USAGE'
 Usage: seed_demo.sh [--region REGION] [--endpoint URL]
 
-Seeds LocalStack with a demo subject, policy, and purge-ready record.
+Seeds LocalStack with a demo subject and policy for local testing.
   --region, -r    AWS region (default: us-west-2)
   --endpoint, -e  DynamoDB endpoint URL (default: http://localhost:4566)
   --help,   -h    Show this help message

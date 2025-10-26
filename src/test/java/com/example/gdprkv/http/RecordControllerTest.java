@@ -4,16 +4,19 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
+
 import com.example.gdprkv.models.Record;
+import com.example.gdprkv.service.AuditLogService;
 import com.example.gdprkv.service.GdprKvException;
 import com.example.gdprkv.service.PolicyDrivenRecordService;
 import com.example.gdprkv.service.RecordWriteRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -38,6 +41,9 @@ class RecordControllerTest {
 
     @MockBean
     private PolicyDrivenRecordService recordService;
+
+    @MockBean
+    private AuditLogService auditLogService;
 
     @Test
     @DisplayName("PUT record returns 200 and response body")
@@ -67,6 +73,7 @@ class RecordControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.header().exists("X-Request-Id"))
                 .andExpect(MockMvcResultMatchers.header().string("ETag", equalTo("2")))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.subject_id", equalTo("sub_123")))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.record_key", equalTo("pref:email")))
@@ -80,6 +87,9 @@ class RecordControllerTest {
         assertEquals("pref:email", writeRequest.recordKey());
         assertEquals("FULFILLMENT", writeRequest.purpose());
         assertFalse(writeRequest.requestId().isBlank());
+
+        verify(auditLogService).recordPutRequested("sub_123", "pref:email", "FULFILLMENT", writeRequest.requestId());
+        verify(auditLogService).recordPutSuccess(any(Record.class));
 
     }
 
@@ -98,6 +108,10 @@ class RecordControllerTest {
                         .content(body))
                 .andExpect(MockMvcResultMatchers.status().isBadRequest())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.code", equalTo("INVALID_PURPOSE")));
+
+        verify(auditLogService).recordPutRequested(any(), any(), any(), any());
+        verify(auditLogService).recordPutFailure(any(), any(), any(), any(), any());
+        verify(auditLogService, never()).recordPutSuccess(any());
     }
 
     @Test
@@ -135,6 +149,9 @@ class RecordControllerTest {
         RecordWriteRequest writeRequest = captor.getValue();
         assertEquals("sub_abc", writeRequest.subjectId());
         assertFalse(writeRequest.requestId().isBlank());
+
+        verify(auditLogService).recordPutRequested("sub_abc", "pref:sms", "FULFILLMENT", writeRequest.requestId());
+        verify(auditLogService).recordPutSuccess(any(Record.class));
 
         String headerId = result.getResponse().getHeader("X-Request-Id");
         assertFalse(headerId == null || headerId.isBlank());

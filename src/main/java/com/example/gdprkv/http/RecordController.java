@@ -1,6 +1,7 @@
 package com.example.gdprkv.http;
 
 import com.example.gdprkv.models.Record;
+import com.example.gdprkv.service.AuditLogService;
 import com.example.gdprkv.service.PolicyDrivenRecordService;
 import com.example.gdprkv.service.RecordWriteRequest;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -16,9 +17,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class RecordController {
 
     private final PolicyDrivenRecordService recordService;
+    private final AuditLogService auditLogService;
 
-    public RecordController(PolicyDrivenRecordService recordService) {
+    public RecordController(PolicyDrivenRecordService recordService,
+                           AuditLogService auditLogService) {
         this.recordService = recordService;
+        this.auditLogService = auditLogService;
     }
 
     @PutMapping("/subjects/{subjectId}/records/{recordKey}")
@@ -35,8 +39,21 @@ public class RecordController {
                 request.value()
         );
 
-        Record record = recordService.putRecord(writeRequest);
-        // use the id the service generated for logging/correlation
+        // Capture the client intent before we validate or attempt writes.
+        auditLogService.recordPutRequested(subjectId, recordKey, request.purpose(), writeRequest.requestId());
+
+        Record record;
+        try {
+            record = recordService.putRecord(writeRequest);
+        } catch (RuntimeException ex) {
+            // Persist a failure event so the audit log reflects the rejected write.
+            auditLogService.recordPutFailure(subjectId, recordKey, request.purpose(), writeRequest.requestId(), ex.getMessage());
+            throw ex;
+        }
+
+        // Final success audit indicates whether this was a new item or an update.
+        auditLogService.recordPutSuccess(record);
+
         return ResponseEntity.ok()
                 .header(HttpHeaders.ETAG, record.getVersion().toString())
                 .body(map(record));
