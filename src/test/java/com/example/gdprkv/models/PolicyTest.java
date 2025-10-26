@@ -63,10 +63,10 @@ class PolicyTest {
 
         String json = MAPPER.writeValueAsString(policy);
         JsonNode node = MAPPER.readTree(json);
-        assertEquals("FULFILLMENT", node.get("purpose").asText());
-        assertEquals(365, node.get("retention_days").asInt());
-        assertEquals("Store fulfillment data for one year", node.get("description").asText());
-        assertEquals(1726867200000L, node.get("last_updated_at").asLong());
+        assertEquals(policy.getPurpose(), node.get("purpose").asText());
+        assertEquals(policy.getRetentionDays(), node.get("retention_days").asInt());
+        assertEquals(policy.getDescription(), node.get("description").asText());
+        assertEquals(policy.getLastUpdatedAt(), node.get("last_updated_at").asLong());
 
         Policy roundTrip = MAPPER.readValue(json, Policy.class);
         assertEquals(policy.getPurpose(), roundTrip.getPurpose());

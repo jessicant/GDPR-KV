@@ -28,6 +28,9 @@ dependencies {
         exclude(group = "org.junit.vintage")
     }
 
+    testImplementation("org.testcontainers:junit-jupiter:1.20.1")
+    testImplementation("org.testcontainers:localstack:1.20.1")
+
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     compileOnly("org.projectlombok:lombok:1.18.34")
     annotationProcessor("org.projectlombok:lombok:1.18.34")
