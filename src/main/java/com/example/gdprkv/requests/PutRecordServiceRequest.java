@@ -1,11 +1,15 @@
-package com.example.gdprkv.service;
+package com.example.gdprkv.requests;
 
 import java.util.Objects;
 import java.util.UUID;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
-public record RecordWriteRequest(
+/**
+ * Service-layer command constructed from {@link PutRecordHttpRequest} plus server-side context
+ * (subject, record key, request id, tombstone metadata) needed to execute the write.
+ */
+public record PutRecordServiceRequest(
         String subjectId,
         String recordKey,
         String purpose,
@@ -15,14 +19,14 @@ public record RecordWriteRequest(
         String requestId
 ) {
 
-    public RecordWriteRequest(String subjectId,
-                              String recordKey,
-                              String purpose,
-                              JsonNode value) {
+    public PutRecordServiceRequest(String subjectId,
+                                   String recordKey,
+                                   String purpose,
+                                   JsonNode value) {
         this(subjectId, recordKey, purpose, value, false, null, null);
     }
 
-    public RecordWriteRequest {
+    public PutRecordServiceRequest {
         Objects.requireNonNull(subjectId, "subjectId");
         if (subjectId.isBlank()) {
             throw new IllegalArgumentException("subjectId must be non-blank");

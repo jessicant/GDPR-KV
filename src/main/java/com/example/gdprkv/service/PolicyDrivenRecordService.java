@@ -8,8 +8,13 @@ import com.example.gdprkv.access.PolicyAccess;
 import com.example.gdprkv.access.RecordAccess;
 import com.example.gdprkv.models.Policy;
 import com.example.gdprkv.models.Record;
+import com.example.gdprkv.requests.PutRecordServiceRequest;
 import org.springframework.stereotype.Service;
 
+/**
+ * Applies policy constraints when writing records, handling versioning, tombstone metadata,
+ * retention calculations, and persistence while delegating storage to the configured access ports.
+ */
 @Service
 public class PolicyDrivenRecordService {
 
@@ -25,7 +30,7 @@ public class PolicyDrivenRecordService {
         this.clock = clock;
     }
 
-    public Record putRecord(RecordWriteRequest request) {
+    public Record putRecord(PutRecordServiceRequest request) {
         Objects.requireNonNull(request, "request");
 
         Policy policy = policyAccess.findByPurpose(request.purpose())

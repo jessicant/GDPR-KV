@@ -10,6 +10,7 @@ import com.example.gdprkv.access.PolicyAccess;
 import com.example.gdprkv.access.RecordAccess;
 import com.example.gdprkv.models.Policy;
 import com.example.gdprkv.models.Record;
+import com.example.gdprkv.requests.PutRecordServiceRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
 import java.time.Instant;
@@ -43,7 +44,7 @@ class PolicyDrivenRecordServiceTest {
     void putRecordNewItem() throws Exception {
         policyAccess.save(policy("FULFILLMENT", 30));
 
-        RecordWriteRequest request = new RecordWriteRequest(
+        PutRecordServiceRequest request = new PutRecordServiceRequest(
                 "sub_1",
                 "pref:email",
                 "FULFILLMENT",
@@ -83,7 +84,7 @@ class PolicyDrivenRecordServiceTest {
                 .build();
         recordAccess.save(existing);
 
-        RecordWriteRequest request = new RecordWriteRequest(
+        PutRecordServiceRequest request = new PutRecordServiceRequest(
                 "sub_2",
                 "pref:sms",
                 "DELETION",
@@ -107,7 +108,7 @@ class PolicyDrivenRecordServiceTest {
     @Test
     @DisplayName("Throws when policy missing")
     void putRecordMissingPolicy() throws Exception {
-        RecordWriteRequest request = new RecordWriteRequest(
+        PutRecordServiceRequest request = new PutRecordServiceRequest(
                 "sub_3",
                 "pref:email",
                 "UNKNOWN",

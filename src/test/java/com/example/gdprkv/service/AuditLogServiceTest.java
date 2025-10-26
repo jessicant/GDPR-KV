@@ -6,14 +6,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.example.gdprkv.access.AuditEventAccess;
+import com.example.gdprkv.models.AuditEvent;
+import com.example.gdprkv.models.Record;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
-
-import com.example.gdprkv.access.AuditEventAccess;
-import com.example.gdprkv.models.AuditEvent;
-import com.example.gdprkv.models.Record;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

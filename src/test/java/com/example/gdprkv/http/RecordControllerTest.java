@@ -9,14 +9,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.time.Instant;
-
 import com.example.gdprkv.models.Record;
+import com.example.gdprkv.requests.PutRecordServiceRequest;
 import com.example.gdprkv.service.AuditLogService;
 import com.example.gdprkv.service.GdprKvException;
 import com.example.gdprkv.service.PolicyDrivenRecordService;
-import com.example.gdprkv.service.RecordWriteRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Instant;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -49,7 +48,7 @@ class RecordControllerTest {
     @DisplayName("PUT record returns 200 and response body")
     void putRecordSuccess() throws Exception {
         when(recordService.putRecord(any())).thenAnswer(invocation -> {
-            RecordWriteRequest req = invocation.getArgument(0);
+            PutRecordServiceRequest req = invocation.getArgument(0);
             return Record.builder()
                     .subjectId(req.subjectId())
                     .recordKey(req.recordKey())
@@ -80,9 +79,9 @@ class RecordControllerTest {
                 .andExpect(MockMvcResultMatchers.jsonPath("$.purpose", equalTo("FULFILLMENT")))
                 .andReturn();
 
-        ArgumentCaptor<RecordWriteRequest> captor = ArgumentCaptor.forClass(RecordWriteRequest.class);
+        ArgumentCaptor<PutRecordServiceRequest> captor = ArgumentCaptor.forClass(PutRecordServiceRequest.class);
         verify(recordService, times(1)).putRecord(captor.capture());
-        RecordWriteRequest writeRequest = captor.getValue();
+        PutRecordServiceRequest writeRequest = captor.getValue();
         assertEquals("sub_123", writeRequest.subjectId());
         assertEquals("pref:email", writeRequest.recordKey());
         assertEquals("FULFILLMENT", writeRequest.purpose());
@@ -117,10 +116,10 @@ class RecordControllerTest {
     @Test
     @DisplayName("PUT record emits filter-generated request id when none supplied")
     void putRecordGeneratesRequestId() throws Exception {
-        ArgumentCaptor<RecordWriteRequest> captor = ArgumentCaptor.forClass(RecordWriteRequest.class);
+        ArgumentCaptor<PutRecordServiceRequest> captor = ArgumentCaptor.forClass(PutRecordServiceRequest.class);
 
         when(recordService.putRecord(any())).thenAnswer(invocation -> {
-            RecordWriteRequest req = invocation.getArgument(0);
+            PutRecordServiceRequest req = invocation.getArgument(0);
             return Record.builder()
                     .subjectId(req.subjectId())
                     .recordKey(req.recordKey())
@@ -146,7 +145,7 @@ class RecordControllerTest {
                 .andReturn();
 
         verify(recordService).putRecord(captor.capture());
-        RecordWriteRequest writeRequest = captor.getValue();
+        PutRecordServiceRequest writeRequest = captor.getValue();
         assertEquals("sub_abc", writeRequest.subjectId());
         assertFalse(writeRequest.requestId().isBlank());
 

@@ -1,9 +1,10 @@
 package com.example.gdprkv.http;
 
 import com.example.gdprkv.models.Record;
+import com.example.gdprkv.requests.PutRecordHttpRequest;
+import com.example.gdprkv.requests.PutRecordServiceRequest;
 import com.example.gdprkv.service.AuditLogService;
 import com.example.gdprkv.service.PolicyDrivenRecordService;
-import com.example.gdprkv.service.RecordWriteRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
@@ -13,6 +14,10 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * REST entry point for record writes. Accepts HTTP payloads, converts them into service commands,
+ * invokes the policy-aware record service, and records audit events for success/failure paths.
+ */
 @RestController
 public class RecordController {
 
@@ -29,10 +34,10 @@ public class RecordController {
     public ResponseEntity<RecordResponse> putRecord(
             @PathVariable String subjectId,
             @PathVariable String recordKey,
-            @Valid @RequestBody PutRecordRequest request
+            @Valid @RequestBody PutRecordHttpRequest request
     ) {
 
-        RecordWriteRequest writeRequest = new RecordWriteRequest(
+        PutRecordServiceRequest writeRequest = new PutRecordServiceRequest(
                 subjectId,
                 recordKey,
                 request.purpose(),

@@ -14,6 +14,7 @@ import com.example.gdprkv.access.RecordAccess;
 import com.example.gdprkv.models.AuditEvent;
 import com.example.gdprkv.models.Policy;
 import com.example.gdprkv.models.Record;
+import com.example.gdprkv.requests.PutRecordHttpRequest;
 import com.example.gdprkv.service.AuditLogService;
 import com.example.gdprkv.service.PolicyDrivenRecordService;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -124,7 +125,7 @@ class RecordControllerDynamoIntegrationTest {
     void putRecordIntegration() throws Exception {
         PutRecordFixture fixture = mapper.convertValue(readFixture("fixtures/put_record_request.json"), PutRecordFixture.class);
 
-        PutRecordRequest request = new PutRecordRequest(fixture.purpose(), fixture.value());
+        PutRecordHttpRequest request = new PutRecordHttpRequest(fixture.purpose(), fixture.value());
 
         ResponseEntity<RecordResponse> response = controller.putRecord(fixture.subjectId(), fixture.recordKey(), request);
 
@@ -246,7 +247,8 @@ class RecordControllerDynamoIntegrationTest {
     private Map<String, Object> readFixture(String resourcePath) throws Exception {
         Path path = Path.of("src/test/resources", resourcePath);
         String json = Files.readString(path);
-        return mapper.readValue(json, new TypeReference<>() {});
+        return mapper.readValue(json, new TypeReference<>() {
+        });
     }
 
     private record PutRecordFixture(
@@ -254,5 +256,6 @@ class RecordControllerDynamoIntegrationTest {
             @JsonProperty("record_key") String recordKey,
             @JsonProperty("purpose") String purpose,
             @JsonProperty("value") JsonNode value
-    ) {}
+    ) {
+    }
 }
