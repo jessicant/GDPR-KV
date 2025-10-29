@@ -16,7 +16,6 @@ import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import software.amazon.awssdk.enhanced.dynamodb.extensions.annotations.DynamoDbVersionAttribute;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbAttribute;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
 
@@ -44,7 +43,6 @@ class SubjectTest {
 
         assertEquals("sub_123", s.getSubjectId());
         assertEquals(1725412345000L, s.getCreatedAt());
-        assertEquals(3L, s.getVersion());
         assertEquals("EU", s.getResidency());
         assertTrue(Boolean.TRUE.equals(s.getErasureInProgress()));
         assertEquals(1725419999000L, s.getErasureRequestedAt());
@@ -59,7 +57,6 @@ class SubjectTest {
         Subject s = Subject.builder()
                 .subjectId("sub_123")
                 .createdAt(1725412345000L)
-                .version(3L)
                 .residency("EU")
                 .erasureInProgress(true)
                 .erasureRequestedAt(1725419999000L)
@@ -74,8 +71,7 @@ class SubjectTest {
     void builderEnforcesNonNull() {
         assertThrows(NullPointerException.class, () -> Subject.builder().build());
         assertThrows(NullPointerException.class, () -> Subject.builder().subjectId("x").build());
-        assertThrows(NullPointerException.class,
-                () -> Subject.builder().subjectId("x").createdAt(1L).build());
+        assertDoesNotThrow(() -> Subject.builder().subjectId("x").createdAt(1L).build());
     }
 
     @Test
@@ -85,11 +81,9 @@ class SubjectTest {
         assertDoesNotThrow(() -> {
             s.setSubjectId("id");
             s.setCreatedAt(42L);
-            s.setVersion(7L);
         });
         assertEquals("id", s.getSubjectId());
         assertEquals(42L, s.getCreatedAt());
-        assertEquals(7L, s.getVersion());
     }
 
     @Test
@@ -97,15 +91,10 @@ class SubjectTest {
     void dynamoAnnotationsPresent() throws Exception {
         Method getSubjectId = Subject.class.getMethod("getSubjectId");
         Method getCreatedAt = Subject.class.getMethod("getCreatedAt");
-        Method getVersion   = Subject.class.getMethod("getVersion");
-
         assertNotNull(getSubjectId.getAnnotation(DynamoDbPartitionKey.class));
         assertEquals("subject_id",
                 getSubjectId.getAnnotation(DynamoDbAttribute.class).value());
         assertEquals("created_at",
                 getCreatedAt.getAnnotation(DynamoDbAttribute.class).value());
-        assertEquals("version",
-                getVersion.getAnnotation(DynamoDbAttribute.class).value());
-        assertNotNull(getVersion.getAnnotation(DynamoDbVersionAttribute.class));
     }
 }

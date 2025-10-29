@@ -20,10 +20,11 @@ public class ApiExceptionHandler {
     @ExceptionHandler(GdprKvException.class)
     public ResponseEntity<Map<String, Object>> domainError(GdprKvException ex) {
         HttpStatus status;
-        if (ex.getCode() == GdprKvException.Code.INVALID_PURPOSE) {
-            status = HttpStatus.BAD_REQUEST;
-        } else {
-            status = HttpStatus.INTERNAL_SERVER_ERROR;
+        switch (ex.getCode()) {
+            case INVALID_PURPOSE -> status = HttpStatus.BAD_REQUEST;
+            case SUBJECT_NOT_FOUND -> status = HttpStatus.NOT_FOUND;
+            case SUBJECT_ALREADY_EXISTS -> status = HttpStatus.CONFLICT;
+            default -> status = HttpStatus.INTERNAL_SERVER_ERROR;
         }
 
         return ResponseEntity.status(status)

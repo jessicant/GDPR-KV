@@ -16,7 +16,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * REST entry point for record writes. Accepts HTTP payloads, converts them into service commands,
- * invokes the policy-aware record service, and records audit events for success/failure paths.
+ * invokes the policy-aware record service (which requires the subject to exist), and records
+ * audit events for success/failure paths.
  */
 @RestController
 public class RecordController {

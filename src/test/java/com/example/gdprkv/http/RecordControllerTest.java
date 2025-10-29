@@ -114,6 +114,27 @@ class RecordControllerTest {
     }
 
     @Test
+    @DisplayName("PUT record returns 404 when subject missing")
+    void putRecordSubjectMissing() throws Exception {
+        when(recordService.putRecord(any())).thenThrow(GdprKvException.subjectNotFound("ghost"));
+
+        String body = "{" +
+                "\"purpose\":\"FULFILLMENT\"," +
+                "\"value\":{}" +
+                "}";
+
+        mockMvc.perform(MockMvcRequestBuilders.put("/subjects/ghost/records/pref:email")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(MockMvcResultMatchers.status().isNotFound())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.code", equalTo("SUBJECT_NOT_FOUND")));
+
+        verify(auditLogService).recordPutRequested(any(), any(), any(), any());
+        verify(auditLogService).recordPutFailure(any(), any(), any(), any(), any());
+        verify(auditLogService, never()).recordPutSuccess(any());
+    }
+
+    @Test
     @DisplayName("PUT record emits filter-generated request id when none supplied")
     void putRecordGeneratesRequestId() throws Exception {
         ArgumentCaptor<PutRecordServiceRequest> captor = ArgumentCaptor.forClass(PutRecordServiceRequest.class);

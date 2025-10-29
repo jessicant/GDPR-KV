@@ -6,6 +6,8 @@ public class GdprKvException extends RuntimeException {
 
     public enum Code {
         INVALID_PURPOSE,
+        SUBJECT_ALREADY_EXISTS,
+        SUBJECT_NOT_FOUND,
         UNKNOWN
     }
 
@@ -20,5 +22,15 @@ public class GdprKvException extends RuntimeException {
     public static GdprKvException invalidPurpose(String purpose) {
         return new GdprKvException(Code.INVALID_PURPOSE,
                 "Purpose " + purpose + " is not configured");
+    }
+
+    public static GdprKvException subjectNotFound(String subjectId) {
+        return new GdprKvException(Code.SUBJECT_NOT_FOUND,
+                "Subject " + subjectId + " does not exist");
+    }
+
+    public static GdprKvException subjectAlreadyExists(String subjectId) {
+        return new GdprKvException(Code.SUBJECT_ALREADY_EXISTS,
+                "Subject " + subjectId + " already exists");
     }
 }

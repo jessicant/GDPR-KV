@@ -29,8 +29,6 @@ public class Subject {
     @NonNull
     private Long createdAt;
 
-    @NonNull
-    private Long version;
 
     // Optional fields
     private String residency;
@@ -45,10 +43,6 @@ public class Subject {
 
     @DynamoDbAttribute("created_at")
     public Long getCreatedAt() { return createdAt; }
-
-    @DynamoDbVersionAttribute
-    @DynamoDbAttribute("version")
-    public Long getVersion() { return version; }
 
     @DynamoDbAttribute("residency")
     public String getResidency() { return residency; }

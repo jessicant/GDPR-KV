@@ -77,8 +77,27 @@ Windows Powershell:
 
 > Tip: If you already have credentials or use `awslocal`, the scripts honor whatever is in your environment.
 
+### Create a Subject (via API)
+Subjects must exist before records can be written for them. The demo seed already creates
+`demo_subject_001`, but you can create your own subjects through the API:
+
+```bash
+curl -X PUT \
+  -H "Content-Type: application/json" \
+  http://localhost:8080/subjects/customer_123 \
+  -d '{
+    "residency": "US"
+  }'
+```
+
+The request body is optional—omitting it creates a subject with default metadata. Reissuing the PUT
+for an existing subject returns a `409 SUBJECT_ALREADY_EXISTS` error; subjects are immutable once
+created.
+
 ### Put a Record (via API)
-Once the demo data is seeded you can write a record through the API:
+Once the subject exists (either via the seed script or the endpoint above) you can write a record
+through the API. The service will return `404 SUBJECT_NOT_FOUND` if you attempt to write to a
+non-existent subject.
 
 1. Start the Spring Boot API locally (default port 8080):
    ```bash

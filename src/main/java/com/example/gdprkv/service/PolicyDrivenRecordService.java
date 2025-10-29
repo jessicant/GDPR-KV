@@ -6,6 +6,7 @@ import java.util.Optional;
 
 import com.example.gdprkv.access.PolicyAccess;
 import com.example.gdprkv.access.RecordAccess;
+import com.example.gdprkv.access.SubjectAccess;
 import com.example.gdprkv.models.Policy;
 import com.example.gdprkv.models.Record;
 import com.example.gdprkv.requests.PutRecordServiceRequest;
@@ -13,25 +14,32 @@ import org.springframework.stereotype.Service;
 
 /**
  * Applies policy constraints when writing records, handling versioning, tombstone metadata,
- * retention calculations, and persistence while delegating storage to the configured access ports.
+ * retention calculations, subject existence validation, and persistence while delegating storage
+ * to the configured access ports.
  */
 @Service
 public class PolicyDrivenRecordService {
 
     private final PolicyAccess policyAccess;
     private final RecordAccess recordAccess;
+    private final SubjectAccess subjectAccess;
     private final Clock clock;
 
     public PolicyDrivenRecordService(PolicyAccess policyAccess,
                                      RecordAccess recordAccess,
+                                     SubjectAccess subjectAccess,
                                      Clock clock) {
         this.policyAccess = policyAccess;
         this.recordAccess = recordAccess;
+        this.subjectAccess = subjectAccess;
         this.clock = clock;
     }
 
     public Record putRecord(PutRecordServiceRequest request) {
         Objects.requireNonNull(request, "request");
+
+        subjectAccess.findBySubjectId(request.subjectId())
+                .orElseThrow(() -> GdprKvException.subjectNotFound(request.subjectId()));
 
         Policy policy = policyAccess.findByPurpose(request.purpose())
                 .orElseThrow(() -> GdprKvException.invalidPurpose(request.purpose()));

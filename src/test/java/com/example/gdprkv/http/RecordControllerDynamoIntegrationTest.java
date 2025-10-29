@@ -9,11 +9,14 @@ import com.example.gdprkv.access.AuditEventAccess;
 import com.example.gdprkv.access.DynamoAuditEventAccess;
 import com.example.gdprkv.access.DynamoPolicyAccess;
 import com.example.gdprkv.access.DynamoRecordAccess;
+import com.example.gdprkv.access.DynamoSubjectAccess;
 import com.example.gdprkv.access.PolicyAccess;
 import com.example.gdprkv.access.RecordAccess;
+import com.example.gdprkv.access.SubjectAccess;
 import com.example.gdprkv.models.AuditEvent;
 import com.example.gdprkv.models.Policy;
 import com.example.gdprkv.models.Record;
+import com.example.gdprkv.models.Subject;
 import com.example.gdprkv.requests.PutRecordHttpRequest;
 import com.example.gdprkv.service.AuditLogService;
 import com.example.gdprkv.service.PolicyDrivenRecordService;
@@ -48,6 +51,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.GlobalSecondaryIndex;
 import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
@@ -77,6 +81,7 @@ class RecordControllerDynamoIntegrationTest {
     private PolicyAccess policyAccess;
     private RecordAccess recordAccess;
     private AuditEventAccess auditAccess;
+    private SubjectAccess subjectAccess;
     private AuditLogService auditLogService;
     private PolicyDrivenRecordService recordService;
     private RecordController controller;
@@ -100,8 +105,9 @@ class RecordControllerDynamoIntegrationTest {
         policyAccess = new DynamoPolicyAccess(enhancedClient);
         recordAccess = new DynamoRecordAccess(enhancedClient);
         auditAccess = new DynamoAuditEventAccess(enhancedClient);
+        subjectAccess = new DynamoSubjectAccess(enhancedClient);
         auditLogService = new AuditLogService(auditAccess, clock);
-        recordService = new PolicyDrivenRecordService(policyAccess, recordAccess, clock);
+        recordService = new PolicyDrivenRecordService(policyAccess, recordAccess, subjectAccess, clock);
         controller = new RecordController(recordService, auditLogService);
     }
 
@@ -115,6 +121,19 @@ class RecordControllerDynamoIntegrationTest {
         enhancedClient.table("audit_events", TableSchema.fromBean(AuditEvent.class))
                 .scan().items()
                 .forEach(item -> enhancedClient.table("audit_events", TableSchema.fromBean(AuditEvent.class)).deleteItem(item));
+
+        PutRecordFixture fixture = mapper.convertValue(readFixture("fixtures/put_record_request.json"), PutRecordFixture.class);
+        Subject subject = Subject.builder()
+                .subjectId(fixture.subjectId())
+                .createdAt(clock.millis())
+                .residency("US")
+                .build();
+
+        try {
+            subjectAccess.save(subject);
+        } catch (ConditionalCheckFailedException ignore) {
+            // Subject already exists; reuse the existing record for consistency checks.
+        }
 
         seededPolicy = mapper.convertValue(readFixture("fixtures/policy.json"), Policy.class);
         enhancedClient.table("policies", TableSchema.fromBean(Policy.class)).putItem(seededPolicy);

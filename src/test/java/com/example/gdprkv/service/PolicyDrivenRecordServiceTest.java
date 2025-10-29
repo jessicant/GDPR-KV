@@ -8,8 +8,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.example.gdprkv.access.PolicyAccess;
 import com.example.gdprkv.access.RecordAccess;
+import com.example.gdprkv.access.SubjectAccess;
 import com.example.gdprkv.models.Policy;
 import com.example.gdprkv.models.Record;
+import com.example.gdprkv.models.Subject;
 import com.example.gdprkv.requests.PutRecordServiceRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
@@ -28,6 +30,7 @@ class PolicyDrivenRecordServiceTest {
 
     private InMemoryPolicyAccess policyAccess;
     private InMemoryRecordAccess recordAccess;
+    private InMemorySubjectAccess subjectAccess;
     private Clock clock;
     private PolicyDrivenRecordService service;
 
@@ -35,14 +38,16 @@ class PolicyDrivenRecordServiceTest {
     void setUp() {
         policyAccess = new InMemoryPolicyAccess();
         recordAccess = new InMemoryRecordAccess();
+        subjectAccess = new InMemorySubjectAccess();
         clock = Clock.fixed(Instant.parse("2024-09-01T12:00:00Z"), ZoneOffset.UTC);
-        service = new PolicyDrivenRecordService(policyAccess, recordAccess, clock);
+        service = new PolicyDrivenRecordService(policyAccess, recordAccess, subjectAccess, clock);
     }
 
     @Test
     @DisplayName("Creates new record using policy retention and timestamps")
     void putRecordNewItem() throws Exception {
         policyAccess.save(policy("FULFILLMENT", 30));
+        subjectAccess.save(subject("sub_1"));
 
         PutRecordServiceRequest request = new PutRecordServiceRequest(
                 "sub_1",
@@ -69,6 +74,7 @@ class PolicyDrivenRecordServiceTest {
     @DisplayName("Updates existing record and computes tombstone metadata")
     void putRecordExistingTombstone() throws Exception {
         policyAccess.save(policy("DELETION", 10));
+        subjectAccess.save(subject("sub_2"));
 
         Record existing = Record.builder()
                 .subjectId("sub_2")
@@ -108,6 +114,7 @@ class PolicyDrivenRecordServiceTest {
     @Test
     @DisplayName("Throws when policy missing")
     void putRecordMissingPolicy() throws Exception {
+        subjectAccess.save(subject("sub_3"));
         PutRecordServiceRequest request = new PutRecordServiceRequest(
                 "sub_3",
                 "pref:email",
@@ -119,12 +126,35 @@ class PolicyDrivenRecordServiceTest {
         assertEquals(GdprKvException.Code.INVALID_PURPOSE, ex.getCode());
     }
 
+    @Test
+    @DisplayName("Throws when subject missing")
+    void putRecordMissingSubject() throws Exception {
+        policyAccess.save(policy("FULFILLMENT", 30));
+
+        PutRecordServiceRequest request = new PutRecordServiceRequest(
+                "absent",
+                "pref:email",
+                "FULFILLMENT",
+                MAPPER.readTree("{}")
+        );
+
+        GdprKvException ex = assertThrows(GdprKvException.class, () -> service.putRecord(request));
+        assertEquals(GdprKvException.Code.SUBJECT_NOT_FOUND, ex.getCode());
+    }
+
     private Policy policy(String purpose, int retentionDays) {
         return Policy.builder()
                 .purpose(purpose)
                 .retentionDays(retentionDays)
                 .description("demo")
                 .lastUpdatedAt(clock.millis())
+                .build();
+    }
+
+    private Subject subject(String subjectId) {
+        return Subject.builder()
+                .subjectId(subjectId)
+                .createdAt(clock.millis())
                 .build();
     }
 
@@ -157,6 +187,21 @@ class PolicyDrivenRecordServiceTest {
 
         private String key(String subjectId, String recordKey) {
             return subjectId + "#" + recordKey;
+        }
+    }
+
+    private static class InMemorySubjectAccess implements SubjectAccess {
+        private final Map<String, Subject> store = new HashMap<>();
+
+        @Override
+        public Optional<Subject> findBySubjectId(String subjectId) {
+            return Optional.ofNullable(store.get(subjectId));
+        }
+
+        @Override
+        public Subject save(Subject subject) {
+            store.put(subject.getSubjectId(), subject);
+            return subject;
         }
     }
 }

@@ -15,7 +15,8 @@ Write-Host "Seeding demo data into $Endpoint (region $Region)"
 aws --endpoint-url $Endpoint --region $Region dynamodb put-item --table-name subjects --item @""{
   "subject_id": {"S": "$subjectId"},
   "created_at": {"N": "$now"},
-  "version": {"N": "1"}
+  "version": {"N": "1"},
+  "residency": {"S": "US"}
 }""@
 
 aws --endpoint-url $Endpoint --region $Region dynamodb put-item --table-name policies --item @""{

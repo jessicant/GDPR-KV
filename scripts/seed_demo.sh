@@ -56,7 +56,8 @@ subject_item=$(cat <<JSON
 {
   "subject_id": {"S": "$SUBJECT_ID"},
   "created_at": {"N": "$created_at"},
-  "version": {"N": "1"}
+  "version": {"N": "1"},
+  "residency": {"S": "US"}
 }
 JSON
 )

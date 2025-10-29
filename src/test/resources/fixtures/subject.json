@@ -3,6 +3,5 @@
   "created_at": 1725412345000,
   "residency": "EU",
   "erasure_in_progress": true,
-  "erasure_requested_at": 1725419999000,
-  "version": 3
+  "erasure_requested_at": 1725419999000
 }
