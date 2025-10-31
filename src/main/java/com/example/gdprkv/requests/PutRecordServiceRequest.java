@@ -1,9 +1,8 @@
 package com.example.gdprkv.requests;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Objects;
 import java.util.UUID;
-
-import com.fasterxml.jackson.databind.JsonNode;
 
 /**
  * Service-layer command constructed from {@link PutRecordHttpRequest} plus server-side context

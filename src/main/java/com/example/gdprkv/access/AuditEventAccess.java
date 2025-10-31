@@ -1,7 +1,7 @@
 package com.example.gdprkv.access;
 
-import java.util.Optional;
 import com.example.gdprkv.models.AuditEvent;
+import java.util.Optional;
 
 /**
  * Storage abstraction for the append-only {@code audit_events} table. Implementations

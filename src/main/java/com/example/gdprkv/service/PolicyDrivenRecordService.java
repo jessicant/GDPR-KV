@@ -1,15 +1,14 @@
 package com.example.gdprkv.service;
 
-import java.time.Clock;
-import java.util.Objects;
-import java.util.Optional;
-
 import com.example.gdprkv.access.PolicyAccess;
 import com.example.gdprkv.access.RecordAccess;
 import com.example.gdprkv.access.SubjectAccess;
 import com.example.gdprkv.models.Policy;
 import com.example.gdprkv.models.Record;
 import com.example.gdprkv.requests.PutRecordServiceRequest;
+import java.time.Clock;
+import java.util.Objects;
+import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 /**

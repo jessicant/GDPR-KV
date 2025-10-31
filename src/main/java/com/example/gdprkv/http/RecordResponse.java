@@ -14,4 +14,4 @@ public record RecordResponse(
         @JsonProperty("created_at") Long createdAt,
         @JsonProperty("updated_at") Long updatedAt,
         @JsonProperty("retention_days") Integer retentionDays
-) {}
+) { }

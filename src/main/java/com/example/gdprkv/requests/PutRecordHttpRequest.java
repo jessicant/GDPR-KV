@@ -13,4 +13,4 @@ import jakarta.validation.constraints.NotBlank;
 public record PutRecordHttpRequest(
         @JsonProperty("purpose") @NotBlank String purpose,
         @JsonProperty("value") JsonNode value
-) {}
+) { }

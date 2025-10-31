@@ -1,8 +1,7 @@
 package com.example.gdprkv.access;
 
-import java.util.Optional;
-
 import com.example.gdprkv.models.Record;
+import java.util.Optional;
 import org.springframework.stereotype.Component;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbTable;

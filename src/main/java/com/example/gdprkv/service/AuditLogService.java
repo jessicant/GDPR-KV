@@ -1,11 +1,11 @@
 package com.example.gdprkv.service;
 
-import java.time.Clock;
-import java.util.Map;
-import java.util.UUID;
 import com.example.gdprkv.access.AuditEventAccess;
 import com.example.gdprkv.models.AuditEvent;
 import com.example.gdprkv.models.Record;
+import java.time.Clock;
+import java.util.Map;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
