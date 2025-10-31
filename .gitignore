@@ -51,3 +51,8 @@ application-local.properties
 /reports/
 /jacoco/
 
+
+# Claude AI Context (local only)
+.claude/
+CLAUDE_CONTEXT.md
+.claude_history
