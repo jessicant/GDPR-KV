@@ -13,10 +13,10 @@ import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 
 class SubjectServiceTest {
 
