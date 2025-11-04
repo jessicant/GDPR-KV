@@ -3,6 +3,7 @@ package com.example.gdprkv.http;
 import com.example.gdprkv.models.Subject;
 import com.example.gdprkv.requests.PutSubjectHttpRequest;
 import com.example.gdprkv.requests.PutSubjectServiceRequest;
+import com.example.gdprkv.service.AuditLogService;
 import com.example.gdprkv.service.SubjectService;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
@@ -20,9 +21,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class SubjectController {
 
     private final SubjectService subjectService;
+    private final AuditLogService auditLogService;
 
-    public SubjectController(SubjectService subjectService) {
+    public SubjectController(SubjectService subjectService, AuditLogService auditLogService) {
         this.subjectService = subjectService;
+        this.auditLogService = auditLogService;
     }
 
     @PutMapping("/subjects/{subjectId}")
@@ -36,8 +39,18 @@ public class SubjectController {
                 ? UUID.randomUUID().toString()
                 : requestId;
 
-        Subject subject = subjectService.putSubject(
-                new PutSubjectServiceRequest(subjectId, residency, effectiveRequestId));
+        auditLogService.recordCreateSubjectRequested(subjectId, effectiveRequestId);
+
+        Subject subject;
+        try {
+            subject = subjectService.putSubject(
+                    new PutSubjectServiceRequest(subjectId, residency, effectiveRequestId));
+        } catch (RuntimeException ex) {
+            auditLogService.recordCreateSubjectFailure(subjectId, effectiveRequestId, ex.getMessage());
+            throw ex;
+        }
+
+        auditLogService.recordCreateSubjectSuccess(subject);
 
         return ResponseEntity.ok()
                 .header("X-Request-Id", subject.getRequestId())

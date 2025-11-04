@@ -82,6 +82,7 @@ public class AuditEvent {
         CREATE_SUBJECT,
         CREATE_SUBJECT_REQUESTED,
         CREATE_SUBJECT_COMPLETED,
+        CREATE_SUBJECT_FAILED,
 
         PUT_REQUESTED,
         PUT_FAILED,

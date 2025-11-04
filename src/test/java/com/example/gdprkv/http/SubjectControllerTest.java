@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 
 import com.example.gdprkv.models.Subject;
 import com.example.gdprkv.requests.PutSubjectServiceRequest;
+import com.example.gdprkv.service.AuditLogService;
 import com.example.gdprkv.service.GdprKvException;
 import com.example.gdprkv.service.SubjectService;
 import org.junit.jupiter.api.DisplayName;
@@ -29,6 +30,9 @@ class SubjectControllerTest {
 
     @MockBean
     private SubjectService subjectService;
+
+    @MockBean
+    private AuditLogService auditLogService;
 
     @Test
     @DisplayName("PUT subject creates subject metadata")

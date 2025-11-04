@@ -5,14 +5,19 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.example.gdprkv.access.AuditEventAccess;
+import com.example.gdprkv.access.DynamoAuditEventAccess;
 import com.example.gdprkv.access.DynamoSubjectAccess;
 import com.example.gdprkv.access.SubjectAccess;
+import com.example.gdprkv.models.AuditEvent;
 import com.example.gdprkv.models.Subject;
 import com.example.gdprkv.requests.PutSubjectHttpRequest;
+import com.example.gdprkv.service.AuditLogService;
 import com.example.gdprkv.service.SubjectService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeAll;
@@ -28,6 +33,7 @@ import org.testcontainers.utility.DockerImageName;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
+import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
@@ -59,6 +65,8 @@ class SubjectControllerDynamoIntegrationTest {
     private DynamoDbEnhancedClient enhancedClient;
     private SubjectAccess subjectAccess;
     private SubjectService subjectService;
+    private AuditEventAccess auditAccess;
+    private AuditLogService auditLogService;
     private SubjectController controller;
     private final Clock clock = Clock.fixed(Instant.parse("2024-10-02T08:00:00Z"), ZoneOffset.UTC);
 
@@ -73,10 +81,13 @@ class SubjectControllerDynamoIntegrationTest {
                 .build();
         enhancedClient = DynamoDbEnhancedClient.builder().dynamoDbClient(dynamo).build();
         ensureSubjectsTable();
+        ensureAuditEventsTable();
 
         subjectAccess = new DynamoSubjectAccess(enhancedClient);
+        auditAccess = new DynamoAuditEventAccess(enhancedClient);
         subjectService = new SubjectService(subjectAccess, clock);
-        controller = new SubjectController(subjectService);
+        auditLogService = new AuditLogService(auditAccess, clock);
+        controller = new SubjectController(subjectService, auditLogService);
     }
 
     @BeforeEach
@@ -163,6 +174,61 @@ class SubjectControllerDynamoIntegrationTest {
         assertNull(persisted.get().getResidency());
     }
 
+    @Test
+    @DisplayName("PUT subject creates audit events for request and completion")
+    void putSubjectCreatesAuditEvents() {
+        String randomSubjectId = "test_" + UUID.randomUUID().toString().substring(0, 8);
+        PutSubjectHttpRequest request = new PutSubjectHttpRequest("US");
+
+        ResponseEntity<SubjectResponse> response = controller.putSubject(randomSubjectId, request, null);
+
+        assertEquals(200, response.getStatusCode().value());
+
+        List<AuditEvent> events = enhancedClient.table("audit_events", TableSchema.fromBean(AuditEvent.class))
+                .scan().items().stream()
+                .filter(e -> e.getSubjectId().equals(randomSubjectId))
+                .toList();
+
+        assertEquals(2, events.size());
+
+        AuditEvent requestedEvent = events.stream()
+                .filter(e -> e.getEventType() == AuditEvent.EventType.CREATE_SUBJECT_REQUESTED)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("CREATE_SUBJECT_REQUESTED event not found"));
+
+        AuditEvent completedEvent = events.stream()
+                .filter(e -> e.getEventType() == AuditEvent.EventType.CREATE_SUBJECT_COMPLETED)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("CREATE_SUBJECT_COMPLETED event not found"));
+
+        // Verify REQUESTED event
+        assertEquals(AuditEvent.EventType.CREATE_SUBJECT_REQUESTED, requestedEvent.getEventType());
+        assertEquals(randomSubjectId, requestedEvent.getSubjectId());
+        assertNotNull(requestedEvent.getRequestId());
+        assertEquals(clock.millis(), requestedEvent.getTimestamp());
+        assertNotNull(requestedEvent.getTsUlid());
+        assertTrue(requestedEvent.getTsUlid().startsWith(String.valueOf(clock.millis())));
+        assertNotNull(requestedEvent.getHash());
+        assertEquals("0".repeat(64), requestedEvent.getPrevHash());
+        assertNull(requestedEvent.getItemKey());
+        assertNull(requestedEvent.getPurpose());
+        assertNull(requestedEvent.getDetails());
+
+        // Verify COMPLETED event
+        assertEquals(AuditEvent.EventType.CREATE_SUBJECT_COMPLETED, completedEvent.getEventType());
+        assertEquals(randomSubjectId, completedEvent.getSubjectId());
+        assertEquals(requestedEvent.getRequestId(), completedEvent.getRequestId());
+        assertEquals(clock.millis(), completedEvent.getTimestamp());
+        assertNotNull(completedEvent.getTsUlid());
+        assertTrue(completedEvent.getTsUlid().startsWith(String.valueOf(clock.millis())));
+        assertNotNull(completedEvent.getHash());
+        assertEquals(requestedEvent.getHash(), completedEvent.getPrevHash());
+        assertNull(completedEvent.getItemKey());
+        assertNull(completedEvent.getPurpose());
+        assertNotNull(completedEvent.getDetails());
+        assertEquals("US", completedEvent.getDetails().get("residency"));
+    }
+
     private void ensureSubjectsTable() {
         try {
             dynamo.describeTable(b -> b.tableName("subjects"));
@@ -177,6 +243,23 @@ class SubjectControllerDynamoIntegrationTest {
                             .attributeName("subject_id")
                             .keyType(KeyType.HASH)
                             .build())
+                    .billingMode("PAY_PER_REQUEST")
+                    .build());
+        }
+    }
+
+    private void ensureAuditEventsTable() {
+        try {
+            dynamo.describeTable(b -> b.tableName("audit_events"));
+        } catch (ResourceNotFoundException ex) {
+            dynamo.createTable(CreateTableRequest.builder()
+                    .tableName("audit_events")
+                    .attributeDefinitions(
+                            AttributeDefinition.builder().attributeName("subject_id").attributeType(ScalarAttributeType.S).build(),
+                            AttributeDefinition.builder().attributeName("ts_ulid").attributeType(ScalarAttributeType.S).build())
+                    .keySchema(
+                            KeySchemaElement.builder().attributeName("subject_id").keyType(KeyType.HASH).build(),
+                            KeySchemaElement.builder().attributeName("ts_ulid").keyType(KeyType.RANGE).build())
                     .billingMode("PAY_PER_REQUEST")
                     .build());
         }
