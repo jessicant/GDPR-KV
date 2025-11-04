@@ -225,8 +225,7 @@ class SubjectControllerDynamoIntegrationTest {
         assertEquals(requestedEvent.getHash(), completedEvent.getPrevHash());
         assertNull(completedEvent.getItemKey());
         assertNull(completedEvent.getPurpose());
-        assertNotNull(completedEvent.getDetails());
-        assertEquals("US", completedEvent.getDetails().get("residency"));
+        assertNull(completedEvent.getDetails());
     }
 
     private void ensureSubjectsTable() {

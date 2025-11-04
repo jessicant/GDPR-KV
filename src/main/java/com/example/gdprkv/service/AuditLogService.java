@@ -59,7 +59,7 @@ public class AuditLogService {
                 subject.getSubjectId(),
                 subject.getRequestId(),
                 AuditEvent.EventType.CREATE_SUBJECT_COMPLETED,
-                Map.of("residency", subject.getResidency() == null ? "UNKNOWN" : subject.getResidency())
+                null
         );
     }
 
