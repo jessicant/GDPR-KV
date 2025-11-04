@@ -37,6 +37,7 @@ class SubjectControllerTest {
                 .subjectId("demo")
                 .createdAt(1700000000000L)
                 .residency("US")
+                .requestId("test-req-123")
                 .build());
 
         mockMvc.perform(MockMvcRequestBuilders.put("/subjects/demo")

@@ -34,11 +34,12 @@ class SubjectServiceTest {
     @Test
     @DisplayName("creates a new subject with defaults")
     void putSubjectCreatesNew() {
-        Subject subject = subjectService.putSubject(new PutSubjectServiceRequest("demo", "US"));
+        Subject subject = subjectService.putSubject(new PutSubjectServiceRequest("demo", "US", "req-123"));
 
         assertEquals("demo", subject.getSubjectId());
         assertEquals(CLOCK.millis(), subject.getCreatedAt());
         assertEquals("US", subject.getResidency());
+        assertEquals("req-123", subject.getRequestId());
         assertTrue(subjectService.exists("demo"));
     }
 
@@ -49,11 +50,12 @@ class SubjectServiceTest {
                 .subjectId("demo")
                 .createdAt(123L)
                 .residency("GB")
+                .requestId("existing-req")
                 .build();
         subjectAccess.put(existing);
 
         GdprKvException ex = assertThrows(GdprKvException.class,
-                () -> subjectService.putSubject(new PutSubjectServiceRequest("demo", "US")));
+                () -> subjectService.putSubject(new PutSubjectServiceRequest("demo", "US", "req-456")));
         assertEquals(GdprKvException.Code.SUBJECT_ALREADY_EXISTS, ex.getCode());
     }
 

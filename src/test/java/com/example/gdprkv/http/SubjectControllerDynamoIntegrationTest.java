@@ -85,6 +85,7 @@ class SubjectControllerDynamoIntegrationTest {
                 .subjectId(EXISTING_SUBJECT_ID)
                 .createdAt(clock.millis() - 10000L)
                 .residency("US")
+                .requestId("intTest_seed_req")
                 .build();
 
         try {
@@ -100,7 +101,7 @@ class SubjectControllerDynamoIntegrationTest {
         String randomSubjectId = "test_" + UUID.randomUUID().toString().substring(0, 8);
         PutSubjectHttpRequest request = new PutSubjectHttpRequest("EU");
 
-        ResponseEntity<SubjectResponse> response = controller.putSubject(randomSubjectId, request);
+        ResponseEntity<SubjectResponse> response = controller.putSubject(randomSubjectId, request, null);
 
         assertEquals(200, response.getStatusCode().value());
         SubjectResponse body = response.getBody();
@@ -130,7 +131,7 @@ class SubjectControllerDynamoIntegrationTest {
         PutSubjectHttpRequest request = new PutSubjectHttpRequest("EU");
 
         try {
-            controller.putSubject(EXISTING_SUBJECT_ID, request);
+            controller.putSubject(EXISTING_SUBJECT_ID, request, null);
             throw new AssertionError("Expected GdprKvException to be thrown");
         } catch (com.example.gdprkv.service.GdprKvException ex) {
             assertEquals(com.example.gdprkv.service.GdprKvException.Code.SUBJECT_ALREADY_EXISTS, ex.getCode());
@@ -149,7 +150,7 @@ class SubjectControllerDynamoIntegrationTest {
         String randomSubjectId = "test_" + UUID.randomUUID().toString().substring(0, 8);
         PutSubjectHttpRequest request = new PutSubjectHttpRequest(null);
 
-        ResponseEntity<SubjectResponse> response = controller.putSubject(randomSubjectId, request);
+        ResponseEntity<SubjectResponse> response = controller.putSubject(randomSubjectId, request, null);
 
         assertEquals(200, response.getStatusCode().value());
         SubjectResponse body = response.getBody();

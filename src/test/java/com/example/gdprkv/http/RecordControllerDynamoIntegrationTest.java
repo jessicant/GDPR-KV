@@ -127,6 +127,7 @@ class RecordControllerDynamoIntegrationTest {
                 .subjectId(fixture.subjectId())
                 .createdAt(clock.millis())
                 .residency("US")
+                .requestId("record-test-req")
                 .build();
 
         try {

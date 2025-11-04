@@ -28,6 +28,8 @@ public class Subject {
     @NonNull
     private Long createdAt;
 
+    @NonNull
+    private String requestId;
 
     // Optional fields
     private String residency;
@@ -51,4 +53,7 @@ public class Subject {
 
     @DynamoDbAttribute("erasure_requested_at")
     public Long getErasureRequestedAt() { return erasureRequestedAt; }
+
+    @DynamoDbAttribute("request_id")
+    public String getRequestId() { return requestId; }
 }

@@ -11,14 +11,21 @@ class PutSubjectServiceRequestTest {
     @Test
     @DisplayName("subjectId must be non-blank")
     void subjectIdValidation() {
-        assertThrows(NullPointerException.class, () -> new PutSubjectServiceRequest(null, "US"));
-        assertThrows(IllegalArgumentException.class, () -> new PutSubjectServiceRequest("  ", "US"));
+        assertThrows(NullPointerException.class, () -> new PutSubjectServiceRequest(null, "US", "req-123"));
+        assertThrows(IllegalArgumentException.class, () -> new PutSubjectServiceRequest("  ", "US", "req-123"));
+    }
+
+    @Test
+    @DisplayName("requestId must be non-blank")
+    void requestIdValidation() {
+        assertThrows(NullPointerException.class, () -> new PutSubjectServiceRequest("sub", "US", null));
+        assertThrows(IllegalArgumentException.class, () -> new PutSubjectServiceRequest("sub", "US", "  "));
     }
 
     @Test
     @DisplayName("allows optional residency")
     void allowsOptionalResidency() {
-        assertDoesNotThrow(() -> new PutSubjectServiceRequest("sub", null));
-        assertDoesNotThrow(() -> new PutSubjectServiceRequest("sub", "GB"));
+        assertDoesNotThrow(() -> new PutSubjectServiceRequest("sub", null, "req-123"));
+        assertDoesNotThrow(() -> new PutSubjectServiceRequest("sub", "GB", "req-456"));
     }
 }

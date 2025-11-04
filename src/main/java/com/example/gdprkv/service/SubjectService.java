@@ -31,6 +31,7 @@ public class SubjectService {
                 .subjectId(request.subjectId())
                 .createdAt(now)
                 .residency(request.residency())
+                .requestId(request.requestId())
                 .build();
 
         try {

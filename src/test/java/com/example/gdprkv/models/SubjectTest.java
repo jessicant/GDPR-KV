@@ -43,6 +43,7 @@ class SubjectTest {
 
         assertEquals("sub_123", s.getSubjectId());
         assertEquals(1725412345000L, s.getCreatedAt());
+        assertEquals("test-req", s.getRequestId());
         assertEquals("EU", s.getResidency());
         assertTrue(Boolean.TRUE.equals(s.getErasureInProgress()));
         assertEquals(1725419999000L, s.getErasureRequestedAt());
@@ -60,6 +61,7 @@ class SubjectTest {
                 .residency("EU")
                 .erasureInProgress(true)
                 .erasureRequestedAt(1725419999000L)
+                .requestId("test-req")
                 .build();
 
         JsonNode actual = MAPPER.readTree(MAPPER.writeValueAsString(s));
@@ -71,7 +73,8 @@ class SubjectTest {
     void builderEnforcesNonNull() {
         assertThrows(NullPointerException.class, () -> Subject.builder().build());
         assertThrows(NullPointerException.class, () -> Subject.builder().subjectId("x").build());
-        assertDoesNotThrow(() -> Subject.builder().subjectId("x").createdAt(1L).build());
+        assertThrows(NullPointerException.class, () -> Subject.builder().subjectId("x").createdAt(1L).build());
+        assertDoesNotThrow(() -> Subject.builder().subjectId("x").createdAt(1L).requestId("req").build());
     }
 
     @Test

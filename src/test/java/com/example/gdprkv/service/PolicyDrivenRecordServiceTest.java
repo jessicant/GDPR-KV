@@ -155,6 +155,7 @@ class PolicyDrivenRecordServiceTest {
         return Subject.builder()
                 .subjectId(subjectId)
                 .createdAt(clock.millis())
+                .requestId("test-req")
                 .build();
     }
 
