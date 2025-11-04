@@ -1,7 +1,6 @@
 package com.example.gdprkv.http;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -165,10 +164,42 @@ class RecordControllerDynamoIntegrationTest {
                 .scan().items().stream().toList();
 
         assertEquals(2, events.size());
-        var eventTypes = events.stream().map(AuditEvent::getEventType).toList();
-        assertTrue(eventTypes.contains(AuditEvent.EventType.PUT_REQUESTED));
-        assertTrue(eventTypes.contains(AuditEvent.EventType.PUT_NEW_ITEM_SUCCESS));
-        events.forEach(evt -> assertFalse(evt.getHash() == null || evt.getHash().isBlank()));
+
+        AuditEvent requestedEvent = events.stream()
+                .filter(e -> e.getEventType() == AuditEvent.EventType.PUT_REQUESTED)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("PUT_REQUESTED event not found"));
+
+        AuditEvent successEvent = events.stream()
+                .filter(e -> e.getEventType() == AuditEvent.EventType.PUT_NEW_ITEM_SUCCESS)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("PUT_NEW_ITEM_SUCCESS event not found"));
+
+        // Verify PUT_REQUESTED event
+        assertEquals(AuditEvent.EventType.PUT_REQUESTED, requestedEvent.getEventType());
+        assertEquals(fixture.subjectId(), requestedEvent.getSubjectId());
+        assertNotNull(requestedEvent.getRequestId());
+        assertEquals(clock.millis(), requestedEvent.getTimestamp());
+        assertNotNull(requestedEvent.getTsUlid());
+        assertTrue(requestedEvent.getTsUlid().startsWith(String.valueOf(clock.millis())));
+        assertNotNull(requestedEvent.getHash());
+        assertEquals("0".repeat(64), requestedEvent.getPrevHash());
+        assertEquals(fixture.recordKey(), requestedEvent.getItemKey());
+        assertEquals(fixture.purpose(), requestedEvent.getPurpose());
+
+        // Verify PUT_NEW_ITEM_SUCCESS event
+        assertEquals(AuditEvent.EventType.PUT_NEW_ITEM_SUCCESS, successEvent.getEventType());
+        assertEquals(fixture.subjectId(), successEvent.getSubjectId());
+        assertEquals(requestedEvent.getRequestId(), successEvent.getRequestId());
+        assertEquals(clock.millis(), successEvent.getTimestamp());
+        assertNotNull(successEvent.getTsUlid());
+        assertTrue(successEvent.getTsUlid().startsWith(String.valueOf(clock.millis())));
+        assertNotNull(successEvent.getHash());
+        assertEquals(requestedEvent.getHash(), successEvent.getPrevHash());
+        assertEquals(fixture.recordKey(), successEvent.getItemKey());
+        assertEquals(fixture.purpose(), successEvent.getPurpose());
+        assertNotNull(successEvent.getDetails());
+        assertEquals(1, successEvent.getDetails().get("version"));
     }
 
     private void ensureTables() {
