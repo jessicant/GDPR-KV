@@ -9,3 +9,8 @@ server:
 logging:
   pattern:
     level: "%5p [req:%X{requestId}]"
+audit:
+  retention:
+    enabled: false  # Set to true to enable automatic audit log deletion
+    schedule: "0 0 2 * * *"  # Daily at 2am (cron: sec min hour day month weekday)
+    retention-days: 730  # 2 years default retention period
