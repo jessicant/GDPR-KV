@@ -40,6 +40,15 @@ public class DynamoAuditEventAccess implements AuditEventAccess {
     }
 
     @Override
+    public List<AuditEvent> findAllBySubjectId(String subjectId) {
+        return table.query(r -> r.queryConditional(QueryConditional.keyEqualTo(buildKey(subjectId)))
+                        .scanIndexForward(true))
+                .items()
+                .stream()
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public List<AuditEvent> findEventsOlderThan(long cutoffTimestamp) {
         Expression filterExpression = Expression.builder()
                 .expression("#ts < :cutoff")

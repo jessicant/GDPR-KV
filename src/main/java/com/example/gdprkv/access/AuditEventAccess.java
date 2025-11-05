@@ -14,6 +14,15 @@ public interface AuditEventAccess {
     Optional<AuditEvent> findLatest(String subjectId);
 
     /**
+     * Finds all audit events for a specific subject, ordered by timestamp ascending.
+     * Used for subject access requests and audit trail verification.
+     *
+     * @param subjectId the subject ID to query
+     * @return list of all audit events for the subject, ordered chronologically
+     */
+    List<AuditEvent> findAllBySubjectId(String subjectId);
+
+    /**
      * Finds all audit events with timestamp older than the specified cutoff.
      * Used for retention policy enforcement.
      *
