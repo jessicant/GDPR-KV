@@ -140,7 +140,80 @@ Sample response:
 The server generates an `X-Request-Id` (for audit and traceability) and returns it in the response headers; the JSON payload contains only the record fields.
 
 ### Retrieve All Data for a Subject
-API endpoints for retrieving all records and audit events for a subject (GDPR subject access requests) are planned for a future update.
+The API provides endpoints for retrieving all records and audit events for a subject to support GDPR subject access requests (Article 15).
+
+#### Get All Records
+Retrieve all records for a subject:
+
+```bash
+curl http://localhost:8080/subjects/demo_subject_001/records
+```
+
+Sample response:
+```json
+[
+  {
+    "subject_id": "demo_subject_001",
+    "record_key": "pref:email",
+    "purpose": "DEMO_PURPOSE",
+    "value": { "email": "demo@example.com" },
+    "version": 1,
+    "created_at": 1761258574353,
+    "updated_at": 1761258574353,
+    "retention_days": 1
+  },
+  {
+    "subject_id": "demo_subject_001",
+    "record_key": "pref:theme",
+    "purpose": "DEMO_PURPOSE",
+    "value": { "theme": "dark" },
+    "version": 1,
+    "created_at": 1761258584422,
+    "updated_at": 1761258584422,
+    "retention_days": 1
+  }
+]
+```
+
+Records are returned in alphabetical order by `record_key`.
+
+#### Get Audit Trail
+Retrieve complete audit history for a subject:
+
+```bash
+curl http://localhost:8080/subjects/demo_subject_001/audit-events
+```
+
+Sample response:
+```json
+[
+  {
+    "subject_id": "demo_subject_001",
+    "ts_ulid": "1727856000000_01J9K7G8H9M2N3P4Q5R6S7T8V9",
+    "event_type": "PUT_REQUESTED",
+    "request_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "timestamp": 1727856000000,
+    "prev_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+    "hash": "abc123...",
+    "item_key": "pref:email",
+    "purpose": "DEMO_PURPOSE"
+  },
+  {
+    "subject_id": "demo_subject_001",
+    "ts_ulid": "1727856000000_01J9K7G8H9M2N3P4Q5R6S7T8V9",
+    "event_type": "PUT_NEW_ITEM_SUCCESS",
+    "request_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "timestamp": 1727856000000,
+    "prev_hash": "abc123...",
+    "hash": "def456...",
+    "item_key": "pref:email",
+    "purpose": "DEMO_PURPOSE",
+    "details": { "version": 1 }
+  }
+]
+```
+
+Events are returned in chronological order (oldest first). Each event includes `hash` and `prev_hash` fields that form a tamper-evident chain.
 
 ### Configure Audit Log Retention
 Audit logs are retained for 2 years by default. To enable automatic deletion:
@@ -177,8 +250,6 @@ awslocal dynamodb query \
 
 The following API endpoints are planned for future updates:
 
-- **Subject Access Requests** – `GET /subjects/{subjectId}/records` to retrieve all records for a subject
-- **Audit Trail Retrieval** – `GET /subjects/{subjectId}/audit-events` to retrieve complete audit history for a subject
 - **Record Deletion** – `DELETE /subjects/{subjectId}/records/{recordKey}` to tombstone and schedule purge of a record
 - **Subject Erasure** – `DELETE /subjects/{subjectId}` to mark subject for erasure and trigger deletion of all records
 

@@ -31,7 +31,6 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -59,14 +58,13 @@ import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 
 /**
- * Full-stack integration test that boots a DynamoDB-compatible endpoint via Testcontainers
- * (LocalStack) and exercises the {@link RecordController}. This ensures the real data access
- * implementations, audit log service, and controller wiring function end-to-end without
- * relying on mocks.
+ * Full-stack integration test for {@link AuditEventController}. Uses Testcontainers with LocalStack
+ * to verify the GET /subjects/{subjectId}/audit-events endpoint returns audit events in the expected
+ * format and order.
  */
 @Testcontainers
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class RecordControllerDynamoIntegrationTest {
+class AuditEventControllerDynamoIntegrationTest {
 
     private static final DockerImageName LOCALSTACK_IMAGE = DockerImageName.parse("localstack/localstack:3.6");
 
@@ -82,7 +80,8 @@ class RecordControllerDynamoIntegrationTest {
     private SubjectAccess subjectAccess;
     private AuditLogService auditLogService;
     private PolicyDrivenRecordService recordService;
-    private RecordController controller;
+    private RecordController recordController;
+    private AuditEventController auditEventController;
     private final ObjectMapper mapper = new ObjectMapper()
             .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE);
     private final Clock clock = Clock.fixed(Instant.parse("2024-10-02T08:00:00Z"), ZoneOffset.UTC);
@@ -106,7 +105,8 @@ class RecordControllerDynamoIntegrationTest {
         subjectAccess = new DynamoSubjectAccess(enhancedClient);
         auditLogService = new AuditLogService(auditAccess, clock);
         recordService = new PolicyDrivenRecordService(policyAccess, recordAccess, subjectAccess, clock);
-        controller = new RecordController(recordService, auditLogService);
+        recordController = new RecordController(recordService, auditLogService);
+        auditEventController = new AuditEventController(auditAccess);
     }
 
     @BeforeEach
@@ -124,7 +124,7 @@ class RecordControllerDynamoIntegrationTest {
                 .subjectId(fixture.subjectId())
                 .createdAt(clock.millis())
                 .residency("US")
-                .requestId("record-test-req")
+                .requestId("audit-test-req")
                 .build();
 
         try {
@@ -138,147 +138,70 @@ class RecordControllerDynamoIntegrationTest {
     }
 
     @Test
-    @DisplayName("PUT record persists data and emits audit events")
-    void putRecordIntegration() throws Exception {
-        PutRecordFixture fixture = mapper.convertValue(readFixture("fixtures/put_record_request.json"), PutRecordFixture.class);
-
-        PutRecordHttpRequest request = new PutRecordHttpRequest(fixture.purpose(), fixture.value());
-
-        ResponseEntity<RecordResponse> response = controller.putRecord(fixture.subjectId(), fixture.recordKey(), request);
-
-        assertEquals(200, response.getStatusCode().value());
-        RecordResponse body = response.getBody();
-        assertNotNull(body);
-        assertEquals(fixture.subjectId(), body.subjectId());
-        assertEquals(fixture.recordKey(), body.recordKey());
-        assertEquals(fixture.purpose(), body.purpose());
-        assertEquals(seededPolicy.getRetentionDays(), body.retentionDays());
-
-        Optional<Record> persisted = recordAccess.findBySubjectIdAndRecordKey(fixture.subjectId(), fixture.recordKey());
-        assertTrue(persisted.isPresent());
-        assertEquals("demo@example.com", persisted.get().getValue().get("email").asText());
-
-        List<AuditEvent> events = enhancedClient.table("audit_events", TableSchema.fromBean(AuditEvent.class))
-                .scan().items().stream().toList();
-
-        assertEquals(2, events.size());
-
-        AuditEvent requestedEvent = events.stream()
-                .filter(e -> e.getEventType() == AuditEvent.EventType.PUT_REQUESTED)
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("PUT_REQUESTED event not found"));
-
-        AuditEvent successEvent = events.stream()
-                .filter(e -> e.getEventType() == AuditEvent.EventType.PUT_NEW_ITEM_SUCCESS)
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("PUT_NEW_ITEM_SUCCESS event not found"));
-
-        // Verify PUT_REQUESTED event
-        assertEquals(AuditEvent.EventType.PUT_REQUESTED, requestedEvent.getEventType());
-        assertEquals(fixture.subjectId(), requestedEvent.getSubjectId());
-        assertNotNull(requestedEvent.getRequestId());
-        assertEquals(clock.millis(), requestedEvent.getTimestamp());
-        assertNotNull(requestedEvent.getTsUlid());
-        assertTrue(requestedEvent.getTsUlid().startsWith(String.valueOf(clock.millis())));
-        assertNotNull(requestedEvent.getHash());
-        assertEquals("0".repeat(64), requestedEvent.getPrevHash());
-        assertEquals(fixture.recordKey(), requestedEvent.getItemKey());
-        assertEquals(fixture.purpose(), requestedEvent.getPurpose());
-
-        // Verify PUT_NEW_ITEM_SUCCESS event
-        assertEquals(AuditEvent.EventType.PUT_NEW_ITEM_SUCCESS, successEvent.getEventType());
-        assertEquals(fixture.subjectId(), successEvent.getSubjectId());
-        assertEquals(requestedEvent.getRequestId(), successEvent.getRequestId());
-        assertEquals(clock.millis(), successEvent.getTimestamp());
-        assertNotNull(successEvent.getTsUlid());
-        assertTrue(successEvent.getTsUlid().startsWith(String.valueOf(clock.millis())));
-        assertNotNull(successEvent.getHash());
-        assertEquals(requestedEvent.getHash(), successEvent.getPrevHash());
-        assertEquals(fixture.recordKey(), successEvent.getItemKey());
-        assertEquals(fixture.purpose(), successEvent.getPurpose());
-        assertNotNull(successEvent.getDetails());
-        assertEquals(1, successEvent.getDetails().get("version"));
-    }
-
-    @Test
-    @DisplayName("PUT multiple records and retrieve all by subject ID")
-    void putMultipleRecordsAndFindAll() throws Exception {
+    @DisplayName("GET /subjects/{subjectId}/audit-events returns all audit events via API")
+    void getAllAuditEventsViaApi() throws Exception {
         PutRecordFixture fixture = mapper.convertValue(readFixture("fixtures/put_record_request.json"), PutRecordFixture.class);
         String subjectId = fixture.subjectId();
 
-        // Seed additional policies
-        Policy contactPolicy = Policy.builder()
-                .purpose("contact")
-                .retentionDays(365)
-                .lastUpdatedAt(clock.millis())
-                .build();
-        enhancedClient.table("policies", TableSchema.fromBean(Policy.class)).putItem(contactPolicy);
-
-        // Put first record
+        // Create three record operations to generate audit events
         PutRecordHttpRequest request1 = new PutRecordHttpRequest(fixture.purpose(), fixture.value());
-        controller.putRecord(subjectId, fixture.recordKey(), request1);
+        recordController.putRecord(subjectId, fixture.recordKey(), request1);
 
-        // Put second record with different key
-        JsonNode value2 = mapper.createObjectNode().put("phone", "555-1234");
-        PutRecordHttpRequest request2 = new PutRecordHttpRequest("contact", value2);
-        controller.putRecord(subjectId, "contact:phone", request2);
-
-        // Put third record with different key
-        JsonNode value3 = mapper.createObjectNode().put("theme", "dark");
-        PutRecordHttpRequest request3 = new PutRecordHttpRequest(fixture.purpose(), value3);
-        controller.putRecord(subjectId, "pref:theme", request3);
-
-        List<Record> allRecords = recordAccess.findAllBySubjectId(subjectId);
-
-        assertEquals(3, allRecords.size());
-        assertEquals("contact:phone", allRecords.get(0).getRecordKey());
-        assertEquals("pref:email", allRecords.get(1).getRecordKey());
-        assertEquals("pref:theme", allRecords.get(2).getRecordKey());
-    }
-
-    @Test
-    @DisplayName("GET /subjects/{subjectId}/records returns all records via API")
-    void getAllRecordsViaApi() throws Exception {
-        PutRecordFixture fixture = mapper.convertValue(readFixture("fixtures/put_record_request.json"), PutRecordFixture.class);
-        String subjectId = fixture.subjectId();
-
-        // Seed additional policies
-        Policy contactPolicy = Policy.builder()
-                .purpose("contact")
-                .retentionDays(365)
-                .lastUpdatedAt(clock.millis())
-                .build();
-        enhancedClient.table("policies", TableSchema.fromBean(Policy.class)).putItem(contactPolicy);
-
-        // Put three records
-        PutRecordHttpRequest request1 = new PutRecordHttpRequest(fixture.purpose(), fixture.value());
-        controller.putRecord(subjectId, fixture.recordKey(), request1);
-
-        JsonNode value2 = mapper.createObjectNode().put("phone", "555-1234");
-        PutRecordHttpRequest request2 = new PutRecordHttpRequest("contact", value2);
-        controller.putRecord(subjectId, "contact:phone", request2);
+        JsonNode value2 = mapper.createObjectNode().put("email", "updated@example.com");
+        PutRecordHttpRequest request2 = new PutRecordHttpRequest(fixture.purpose(), value2);
+        recordController.putRecord(subjectId, fixture.recordKey(), request2);
 
         JsonNode value3 = mapper.createObjectNode().put("theme", "dark");
         PutRecordHttpRequest request3 = new PutRecordHttpRequest(fixture.purpose(), value3);
-        controller.putRecord(subjectId, "pref:theme", request3);
+        recordController.putRecord(subjectId, "pref:theme", request3);
 
-        // Retrieve via API
-        ResponseEntity<List<RecordResponse>> response = controller.getAllRecords(subjectId);
+        // Retrieve audit events via API
+        ResponseEntity<List<AuditEventResponse>> response = auditEventController.getAllAuditEvents(subjectId);
 
         assertEquals(200, response.getStatusCode().value());
-        List<RecordResponse> records = response.getBody();
-        assertNotNull(records);
-        assertEquals(3, records.size());
+        List<AuditEventResponse> events = response.getBody();
+        assertNotNull(events);
 
-        // Verify ordering by record key
-        assertEquals("contact:phone", records.get(0).recordKey());
-        assertEquals("pref:email", records.get(1).recordKey());
-        assertEquals("pref:theme", records.get(2).recordKey());
+        // Should have 6 events total:
+        // - PUT_REQUESTED + PUT_NEW_ITEM_SUCCESS for first record
+        // - PUT_REQUESTED + PUT_UPDATE_ITEM_SUCCESS for second record (update)
+        // - PUT_REQUESTED + PUT_NEW_ITEM_SUCCESS for third record
+        assertEquals(6, events.size());
 
-        // Verify record details
-        assertEquals(subjectId, records.get(0).subjectId());
-        assertEquals("contact", records.get(0).purpose());
-        assertEquals("555-1234", records.getFirst().value().get("phone").asText());
+        // Verify first event (genesis event with prev_hash = all zeros)
+        AuditEventResponse firstEvent = events.stream()
+                .filter(e -> e.prevHash().equals("0".repeat(64)))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("No genesis event found"));
+
+        assertEquals(subjectId, firstEvent.subjectId());
+        assertNotNull(firstEvent.requestId());
+        assertNotNull(firstEvent.hash());
+
+        // Verify hash chain integrity - each event's prevHash should link to another event's hash
+        for (AuditEventResponse event : events) {
+            if (!event.prevHash().equals("0".repeat(64))) {
+                // Find the previous event whose hash matches this event's prevHash
+                boolean foundPrev = events.stream()
+                        .anyMatch(e -> e.hash().equals(event.prevHash()));
+                assertTrue(foundPrev, "Event " + event.tsUlid() + " has prevHash that doesn't match any event's hash");
+            }
+        }
+
+        // Verify different event types are present
+        long requestedCount = events.stream()
+                .filter(e -> e.eventType() == AuditEvent.EventType.PUT_REQUESTED)
+                .count();
+        long newItemCount = events.stream()
+                .filter(e -> e.eventType() == AuditEvent.EventType.PUT_NEW_ITEM_SUCCESS)
+                .count();
+        long updateItemCount = events.stream()
+                .filter(e -> e.eventType() == AuditEvent.EventType.PUT_UPDATE_ITEM_SUCCESS)
+                .count();
+
+        assertEquals(3, requestedCount);
+        assertEquals(2, newItemCount);
+        assertEquals(1, updateItemCount);
     }
 
     private void ensureTables() {

@@ -7,6 +7,7 @@ import com.example.gdprkv.models.Policy;
 import com.example.gdprkv.models.Record;
 import com.example.gdprkv.requests.PutRecordServiceRequest;
 import java.time.Clock;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import org.springframework.stereotype.Service;
@@ -81,5 +82,10 @@ public class PolicyDrivenRecordService {
         Record toSave = builder.build();
         recordAccess.save(toSave);
         return toSave;
+    }
+
+    public List<Record> findAllBySubjectId(String subjectId) {
+        Objects.requireNonNull(subjectId, "subjectId");
+        return recordAccess.findAllBySubjectId(subjectId);
     }
 }

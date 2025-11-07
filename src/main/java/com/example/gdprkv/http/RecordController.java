@@ -7,8 +7,10 @@ import com.example.gdprkv.service.AuditLogService;
 import com.example.gdprkv.service.PolicyDrivenRecordService;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.Valid;
+import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -63,6 +65,15 @@ public class RecordController {
         return ResponseEntity.ok()
                 .header(HttpHeaders.ETAG, record.getVersion().toString())
                 .body(map(record));
+    }
+
+    @GetMapping("/subjects/{subjectId}/records")
+    public ResponseEntity<List<RecordResponse>> getAllRecords(@PathVariable String subjectId) {
+        List<Record> records = recordService.findAllBySubjectId(subjectId);
+        List<RecordResponse> response = records.stream()
+                .map(this::map)
+                .toList();
+        return ResponseEntity.ok(response);
     }
 
     private RecordResponse map(Record record) {
