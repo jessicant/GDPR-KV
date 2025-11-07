@@ -6,11 +6,13 @@ A subject-centric layer on DynamoDB that adds GDPR-oriented behaviors: right to 
 
 ## Features
 
-- **Subject-Centric Mapping** – enumerate all records for a data subject.
+- **Subject-Centric Mapping** – enumerate all records for a data subject via `findAllBySubjectId()`.
 - **Right to Erasure** – immediate read suppression (tombstone) plus background purge.
-- **Retention Enforcement** – deletes occur when retention expires (not best-effort TTL).
-- **Audit Trail** – append-only, hash-chained events for create, read, update, delete, and purge.
+- **Retention Enforcement** – records deleted when retention expires; scheduled job deletes audit events older than configured retention period (default: 2 years).
+- **Audit Trail** – append-only, hash-chained events for create, read, update, delete, and purge; retrieve complete audit history via `findAllBySubjectId()`.
 - **Efficient Purging** – GSI `records_by_purge_due` uses `purge_bucket` (UTC hour shard) and `purge_due_at` to avoid scans or hot partitions.
+- **Request Tracking** – all operations tagged with `X-Request-Id` header for end-to-end traceability.
+- **GDPR Compliance** – minimal personal data in audit logs (no residency), configurable retention policies.
 
 ## Architecture
 
@@ -38,6 +40,21 @@ Index:
 ```bash
 docker compose up -d
 ```
+
+### Set AWS Credentials
+Export LocalStack credentials (they can be anything, `test` is conventional):
+```bash
+export AWS_ACCESS_KEY_ID=test
+export AWS_SECRET_ACCESS_KEY=test
+```
+Windows PowerShell:
+```powershell
+$env:AWS_ACCESS_KEY_ID = "test"
+$env:AWS_SECRET_ACCESS_KEY = "test"
+```
+
+> **Note:** These credentials are required for the AWS CLI to work, even though LocalStack doesn't validate them. Set them once per shell session.
+
 ### Initialize Tables
 Run the provided script:
 ```bash
@@ -55,27 +72,22 @@ This creates the following DynamoDB tables in LocalStack:
 - `audit_events`
 
 ### Seed Demo Data
-Export LocalStack credentials once per shell (they can be anything, `test` is conventional):
-```bash
-export AWS_ACCESS_KEY_ID=test
-export AWS_SECRET_ACCESS_KEY=test
-```
-PowerShell:
-```powershell
-$env:AWS_ACCESS_KEY_ID = "test"
-$env:AWS_SECRET_ACCESS_KEY = "test"
-```
-
-Then run the seed script (creates the demo subject and policy `DEMO_PURPOSE`):
+Run the seed script (creates the demo subject and policy `DEMO_PURPOSE`):
 ```bash
 ./scripts/seed_demo.sh
 ```
-Windows Powershell:
+Windows PowerShell:
 ```powershell
 ./scripts/seed_demo.ps1
 ```
 
-> Tip: If you already have credentials or use `awslocal`, the scripts honor whatever is in your environment.
+### Start the Application
+Start the Spring Boot API locally (default port 8080):
+```bash
+./gradlew bootRun
+```
+
+Leave this running in a terminal. Once you see `Started GdprKvApplication`, the API is ready to accept requests.
 
 ### Create a Subject (via API)
 Subjects must exist before records can be written for them. The demo seed already creates
@@ -99,13 +111,7 @@ Once the subject exists (either via the seed script or the endpoint above) you c
 through the API. The service will return `404 SUBJECT_NOT_FOUND` if you attempt to write to a
 non-existent subject.
 
-1. Start the Spring Boot API locally (default port 8080):
-   ```bash
-   ./gradlew bootRun
-   ```
-   Leave this running in a terminal.
-
-2. With LocalStack and the app running, issue the request:
+With LocalStack and the app running, issue the request:
 
 ```bash
 curl -X PUT \
@@ -133,6 +139,23 @@ Sample response:
 
 The server generates an `X-Request-Id` (for audit and traceability) and returns it in the response headers; the JSON payload contains only the record fields.
 
+### Retrieve All Data for a Subject
+API endpoints for retrieving all records and audit events for a subject (GDPR subject access requests) are planned for a future update.
+
+### Configure Audit Log Retention
+Audit logs are retained for 2 years by default. To enable automatic deletion:
+
+1. Edit `src/main/resources/application.yml`:
+   ```yaml
+   audit:
+     retention:
+       enabled: true  # Enable scheduled deletion job
+       schedule: "0 0 2 * * *"  # Daily at 2am (cron format)
+       retention-days: 730  # 2 years
+   ```
+
+2. The scheduled job will run automatically and delete audit events older than the retention period.
+
 ### Verify Results
 Check that the record is gone:
 ```bash
@@ -150,5 +173,14 @@ awslocal dynamodb query \
   --scan-index-forward false
 ```
 
+## Planned Features
+
+The following API endpoints are planned for future updates:
+
+- **Subject Access Requests** – `GET /subjects/{subjectId}/records` to retrieve all records for a subject
+- **Audit Trail Retrieval** – `GET /subjects/{subjectId}/audit-events` to retrieve complete audit history for a subject
+- **Record Deletion** – `DELETE /subjects/{subjectId}/records/{recordKey}` to tombstone and schedule purge of a record
+- **Subject Erasure** – `DELETE /subjects/{subjectId}` to mark subject for erasure and trigger deletion of all records
+
 ### Documentation
-The full design (deatiled flows, API shapes, and low-level sweeper design lives here): [Design Document](./doc/design.md)
+The full design (detailed flows, API shapes, and low-level sweeper design lives here): [Design Document](./doc/design.md)

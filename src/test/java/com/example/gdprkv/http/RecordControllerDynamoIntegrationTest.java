@@ -112,10 +112,9 @@ class RecordControllerDynamoIntegrationTest {
 
     @BeforeEach
     void truncateTables() throws Exception {
-        dynamo.deleteItem(b -> b.tableName("records")
-                .key(java.util.Map.of(
-                        "subject_id", attrS("sub_1"),
-                        "record_key", attrS("pref:email"))));
+        enhancedClient.table("records", TableSchema.fromBean(Record.class))
+                .scan().items()
+                .forEach(item -> enhancedClient.table("records", TableSchema.fromBean(Record.class)).deleteItem(item));
 
         enhancedClient.table("audit_events", TableSchema.fromBean(AuditEvent.class))
                 .scan().items()
@@ -200,6 +199,42 @@ class RecordControllerDynamoIntegrationTest {
         assertEquals(fixture.purpose(), successEvent.getPurpose());
         assertNotNull(successEvent.getDetails());
         assertEquals(1, successEvent.getDetails().get("version"));
+    }
+
+    @Test
+    @DisplayName("PUT multiple records and retrieve all by subject ID")
+    void putMultipleRecordsAndFindAll() throws Exception {
+        PutRecordFixture fixture = mapper.convertValue(readFixture("fixtures/put_record_request.json"), PutRecordFixture.class);
+        String subjectId = fixture.subjectId();
+
+        // Seed additional policies
+        Policy contactPolicy = Policy.builder()
+                .purpose("contact")
+                .retentionDays(365)
+                .lastUpdatedAt(clock.millis())
+                .build();
+        enhancedClient.table("policies", TableSchema.fromBean(Policy.class)).putItem(contactPolicy);
+
+        // Put first record
+        PutRecordHttpRequest request1 = new PutRecordHttpRequest(fixture.purpose(), fixture.value());
+        controller.putRecord(subjectId, fixture.recordKey(), request1);
+
+        // Put second record with different key
+        JsonNode value2 = mapper.createObjectNode().put("phone", "555-1234");
+        PutRecordHttpRequest request2 = new PutRecordHttpRequest("contact", value2);
+        controller.putRecord(subjectId, "contact:phone", request2);
+
+        // Put third record with different key
+        JsonNode value3 = mapper.createObjectNode().put("theme", "dark");
+        PutRecordHttpRequest request3 = new PutRecordHttpRequest(fixture.purpose(), value3);
+        controller.putRecord(subjectId, "pref:theme", request3);
+
+        List<Record> allRecords = recordAccess.findAllBySubjectId(subjectId);
+
+        assertEquals(3, allRecords.size());
+        assertEquals("contact:phone", allRecords.get(0).getRecordKey());
+        assertEquals("pref:email", allRecords.get(1).getRecordKey());
+        assertEquals("pref:theme", allRecords.get(2).getRecordKey());
     }
 
     private void ensureTables() {

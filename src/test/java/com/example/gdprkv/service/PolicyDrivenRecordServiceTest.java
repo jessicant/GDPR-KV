@@ -18,6 +18,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -178,6 +179,14 @@ class PolicyDrivenRecordServiceTest {
         @Override
         public Optional<Record> findBySubjectIdAndRecordKey(String subjectId, String recordKey) {
             return Optional.ofNullable(store.get(key(subjectId, recordKey)));
+        }
+
+        @Override
+        public List<Record> findAllBySubjectId(String subjectId) {
+            return store.values().stream()
+                    .filter(r -> r.getSubjectId().equals(subjectId))
+                    .sorted(java.util.Comparator.comparing(Record::getRecordKey))
+                    .collect(java.util.stream.Collectors.toList());
         }
 
         @Override
