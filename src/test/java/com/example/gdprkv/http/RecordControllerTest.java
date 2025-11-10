@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.example.gdprkv.models.Record;
+import com.example.gdprkv.requests.DeleteRecordServiceRequest;
 import com.example.gdprkv.requests.PutRecordServiceRequest;
 import com.example.gdprkv.service.AuditLogService;
 import com.example.gdprkv.service.GdprKvException;
@@ -175,5 +176,79 @@ class RecordControllerTest {
 
         String headerId = result.getResponse().getHeader("X-Request-Id");
         assertFalse(headerId == null || headerId.isBlank());
+    }
+
+    @Test
+    @DisplayName("DELETE record returns 200 and tombstoned record")
+    void deleteRecordSuccess() throws Exception {
+        long now = Instant.parse("2024-09-01T10:00:00Z").toEpochMilli();
+        long purgeDueAt = now + (86400000L * 30); // 30 days later
+
+        when(recordService.deleteRecord(any())).thenAnswer(invocation -> {
+            DeleteRecordServiceRequest req = invocation.getArgument(0);
+            return Record.builder()
+                    .subjectId(req.subjectId())
+                    .recordKey(req.recordKey())
+                    .purpose("FULFILLMENT")
+                    .value(objectMapper.readTree("{\"email\":\"demo@example.com\"}"))
+                    .createdAt(now - 1000000)
+                    .updatedAt(now)
+                    .version(2L)
+                    .retentionDays(30)
+                    .tombstoned(true)
+                    .tombstonedAt(now)
+                    .purgeDueAt(purgeDueAt)
+                    .purgeBucket("2024-10-01T10")
+                    .requestId(req.requestId())
+                    .build();
+        });
+
+        mockMvc.perform(MockMvcRequestBuilders.delete("/subjects/sub_123/records/pref:email"))
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.header().exists("X-Request-Id"))
+                .andExpect(MockMvcResultMatchers.header().string("ETag", equalTo("2")))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.subject_id", equalTo("sub_123")))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.record_key", equalTo("pref:email")))
+                .andReturn();
+
+        ArgumentCaptor<DeleteRecordServiceRequest> captor = ArgumentCaptor.forClass(DeleteRecordServiceRequest.class);
+        verify(recordService, times(1)).deleteRecord(captor.capture());
+        DeleteRecordServiceRequest deleteRequest = captor.getValue();
+        assertEquals("sub_123", deleteRequest.subjectId());
+        assertEquals("pref:email", deleteRequest.recordKey());
+        assertFalse(deleteRequest.requestId().isBlank());
+
+        verify(auditLogService).recordDeleteRequested("sub_123", "pref:email", deleteRequest.requestId());
+        verify(auditLogService).recordDeleteSuccess(any(Record.class));
+        verify(auditLogService, never()).recordDeleteAlreadyTombstoned(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("DELETE record returns 404 when record not found")
+    void deleteRecordNotFound() throws Exception {
+        when(recordService.deleteRecord(any())).thenThrow(GdprKvException.recordNotFound("sub_123", "pref:email"));
+
+        mockMvc.perform(MockMvcRequestBuilders.delete("/subjects/sub_123/records/pref:email"))
+                .andExpect(MockMvcResultMatchers.status().isNotFound())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.code", equalTo("RECORD_NOT_FOUND")));
+
+        verify(auditLogService).recordDeleteRequested(any(), any(), any());
+        verify(auditLogService).recordDeleteFailure(any(), any(), any(), any());
+        verify(auditLogService, never()).recordDeleteSuccess(any());
+        verify(auditLogService, never()).recordDeleteAlreadyTombstoned(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("DELETE record returns 404 when subject not found")
+    void deleteRecordSubjectNotFound() throws Exception {
+        when(recordService.deleteRecord(any())).thenThrow(GdprKvException.subjectNotFound("ghost"));
+
+        mockMvc.perform(MockMvcRequestBuilders.delete("/subjects/ghost/records/pref:email"))
+                .andExpect(MockMvcResultMatchers.status().isNotFound())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.code", equalTo("SUBJECT_NOT_FOUND")));
+
+        verify(auditLogService).recordDeleteRequested(any(), any(), any());
+        verify(auditLogService).recordDeleteFailure(any(), any(), any(), any());
+        verify(auditLogService, never()).recordDeleteSuccess(any());
     }
 }

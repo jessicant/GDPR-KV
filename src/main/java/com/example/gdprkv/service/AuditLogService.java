@@ -69,6 +69,33 @@ public class AuditLogService {
                 errorMessage == null ? null : Map.of("error", errorMessage));
     }
 
+    public void recordDeleteRequested(String subjectId, String recordKey, String requestId) {
+        appendRecordEvent(subjectId, recordKey, null, requestId,
+                AuditEvent.EventType.DELETE_ITEM_REQUESTED, null);
+    }
+
+    public void recordDeleteSuccess(Record record) {
+        appendRecordEvent(
+                record.getSubjectId(),
+                record.getRecordKey(),
+                record.getPurpose(),
+                record.getRequestId(),
+                AuditEvent.EventType.DELETE_ITEM_SUCCESSFUL,
+                Map.of("version", record.getVersion(), "purge_due_at", record.getPurgeDueAt())
+        );
+    }
+
+    public void recordDeleteAlreadyTombstoned(String subjectId, String recordKey, String requestId) {
+        appendRecordEvent(subjectId, recordKey, null, requestId,
+                AuditEvent.EventType.DELETE_ITEM_ALREADY_TOMBSTONED, null);
+    }
+
+    public void recordDeleteFailure(String subjectId, String recordKey, String requestId, String errorMessage) {
+        appendRecordEvent(subjectId, recordKey, null, requestId,
+                AuditEvent.EventType.DELETE_ITEM_FAILURE,
+                errorMessage == null ? null : Map.of("error", errorMessage));
+    }
+
     /**
      * Appends an audit event for record operations, maintaining the per-subject hash chain.
      */

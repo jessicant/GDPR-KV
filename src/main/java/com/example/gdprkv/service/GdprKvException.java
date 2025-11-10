@@ -8,6 +8,7 @@ public class GdprKvException extends RuntimeException {
         INVALID_PURPOSE,
         SUBJECT_ALREADY_EXISTS,
         SUBJECT_NOT_FOUND,
+        RECORD_NOT_FOUND,
         UNKNOWN
     }
 
@@ -32,5 +33,10 @@ public class GdprKvException extends RuntimeException {
     public static GdprKvException subjectAlreadyExists(String subjectId) {
         return new GdprKvException(Code.SUBJECT_ALREADY_EXISTS,
                 "Subject " + subjectId + " already exists");
+    }
+
+    public static GdprKvException recordNotFound(String subjectId, String recordKey) {
+        return new GdprKvException(Code.RECORD_NOT_FOUND,
+                "Record " + recordKey + " for subject " + subjectId + " does not exist");
     }
 }

@@ -23,6 +23,7 @@ public class ApiExceptionHandler {
         switch (ex.getCode()) {
             case INVALID_PURPOSE -> status = HttpStatus.BAD_REQUEST;
             case SUBJECT_NOT_FOUND -> status = HttpStatus.NOT_FOUND;
+            case RECORD_NOT_FOUND -> status = HttpStatus.NOT_FOUND;
             case SUBJECT_ALREADY_EXISTS -> status = HttpStatus.CONFLICT;
             default -> status = HttpStatus.INTERNAL_SERVER_ERROR;
         }

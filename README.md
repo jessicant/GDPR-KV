@@ -215,6 +215,36 @@ Sample response:
 
 Events are returned in chronological order (oldest first). Each event includes `hash` and `prev_hash` fields that form a tamper-evident chain.
 
+### Delete a Record
+Delete (tombstone) a record to implement the right to erasure. The record is marked for deletion and scheduled for purging based on its retention policy:
+
+```bash
+curl -X DELETE http://localhost:8080/subjects/demo_subject_001/records/pref:email
+```
+
+Sample response:
+```json
+{
+  "subject_id": "demo_subject_001",
+  "record_key": "pref:email",
+  "purpose": "DEMO_PURPOSE",
+  "value": { "email": "demo@example.com" },
+  "version": 2,
+  "created_at": 1761258574353,
+  "updated_at": 1761743879873,
+  "retention_days": 1
+}
+```
+
+What happens when you delete a record:
+- The record is **tombstoned** (marked as deleted but not physically removed)
+- A `purge_due_at` timestamp is calculated based on the retention policy
+- The record is indexed in the `records_by_purge_due` GSI for efficient sweeper processing
+- Audit events are created: `DELETE_ITEM_REQUESTED` and `DELETE_ITEM_SUCCESSFUL`
+- If you delete an already-tombstoned record, it returns successfully without changes and creates a `DELETE_ITEM_ALREADY_TOMBSTONED` audit event
+
+The response includes all record fields. The actual tombstone metadata (`tombstoned`, `tombstoned_at`, `purge_due_at`, `purge_bucket`) is stored in DynamoDB but not included in the API response.
+
 ### Configure Audit Log Retention
 Audit logs are retained for 2 years by default. To enable automatic deletion:
 
@@ -248,9 +278,8 @@ awslocal dynamodb query \
 
 ## Planned Features
 
-The following API endpoints are planned for future updates:
+The following API endpoint is planned for future updates:
 
-- **Record Deletion** – `DELETE /subjects/{subjectId}/records/{recordKey}` to tombstone and schedule purge of a record
 - **Subject Erasure** – `DELETE /subjects/{subjectId}` to mark subject for erasure and trigger deletion of all records
 
 ### Documentation
