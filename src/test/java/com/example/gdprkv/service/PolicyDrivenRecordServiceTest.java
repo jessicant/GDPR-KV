@@ -213,5 +213,11 @@ class PolicyDrivenRecordServiceTest {
             store.put(subject.getSubjectId(), subject);
             return subject;
         }
+
+        @Override
+        public Subject update(Subject subject) {
+            store.put(subject.getSubjectId(), subject);
+            return subject;
+        }
     }
 }

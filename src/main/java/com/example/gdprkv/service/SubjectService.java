@@ -89,7 +89,7 @@ public class SubjectService {
                 .erasureRequestedAt(now)
                 .requestId(request.requestId())
                 .build();
-        subjectAccess.save(updatedSubject);
+        subjectAccess.update(updatedSubject);
 
         // Find all records for this subject
         List<Record> records = recordAccess.findAllBySubjectId(request.subjectId());

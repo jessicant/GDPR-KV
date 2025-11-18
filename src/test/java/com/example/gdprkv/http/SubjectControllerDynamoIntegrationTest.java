@@ -323,6 +323,8 @@ class SubjectControllerDynamoIntegrationTest {
                 .purpose("test_purpose")
                 .version(1L)
                 .createdAt(clock.millis())
+                .updatedAt(clock.millis())
+                .retentionDays(30)
                 .requestId("rec1_req")
                 .build();
         Record record2 = Record.builder()
@@ -332,6 +334,8 @@ class SubjectControllerDynamoIntegrationTest {
                 .purpose("test_purpose")
                 .version(1L)
                 .createdAt(clock.millis())
+                .updatedAt(clock.millis())
+                .retentionDays(30)
                 .requestId("rec2_req")
                 .build();
         recordAccess.save(record1);

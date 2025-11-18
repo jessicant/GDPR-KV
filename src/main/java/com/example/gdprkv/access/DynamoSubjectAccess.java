@@ -34,4 +34,13 @@ public class DynamoSubjectAccess implements SubjectAccess {
                         .build()));
         return subject;
     }
+
+    @Override
+    public Subject update(Subject subject) {
+        table.putItem(r -> r.item(subject)
+                .conditionExpression(Expression.builder()
+                        .expression("attribute_exists(subject_id)")
+                        .build()));
+        return subject;
+    }
 }

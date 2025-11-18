@@ -79,5 +79,14 @@ class SubjectServiceTest {
             store.put(subject.getSubjectId(), subject);
             return subject;
         }
+
+        @Override
+        public Subject update(Subject subject) {
+            if (!store.containsKey(subject.getSubjectId())) {
+                throw ConditionalCheckFailedException.builder().message("not found").build();
+            }
+            store.put(subject.getSubjectId(), subject);
+            return subject;
+        }
     }
 }
