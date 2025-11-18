@@ -106,6 +106,7 @@ class SubjectControllerDynamoIntegrationTest {
         policyAccess.save(Policy.builder()
                 .purpose("test_purpose")
                 .retentionDays(30)
+                .lastUpdatedAt(clock.millis())
                 .build());
 
         recordService = new PolicyDrivenRecordService(policyAccess, recordAccess, subjectAccess, clock);
