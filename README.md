@@ -245,6 +245,38 @@ What happens when you delete a record:
 
 The response includes all record fields. The actual tombstone metadata (`tombstoned`, `tombstoned_at`, `purge_due_at`, `purge_bucket`) is stored in DynamoDB but not included in the API response.
 
+### Delete a Subject (Right to Erasure)
+Delete a subject and all associated records to implement GDPR Article 17 (Right to Erasure). This operation marks the subject for erasure and tombstones all records:
+
+```bash
+curl -X DELETE http://localhost:8080/subjects/demo_subject_001
+```
+
+Sample response:
+```json
+{
+  "subject": {
+    "subject_id": "demo_subject_001",
+    "created_at": 1727856000000,
+    "residency": "US",
+    "erasure_in_progress": true,
+    "erasure_requested_at": 1727866000000
+  },
+  "records_deleted": 2,
+  "total_records": 2
+}
+```
+
+What happens when you delete a subject:
+- The subject is **marked for erasure** with `erasure_in_progress=true` and `erasure_requested_at` timestamp
+- **All associated records are tombstoned** immediately
+- Each record is marked with `tombstoned=true`, `tombstoned_at` timestamp, and scheduled for purging
+- Audit events are created: `SUBJECT_ERASURE_REQUESTED`, `SUBJECT_ERASURE_STARTED`, and `SUBJECT_ERASURE_COMPLETED`
+- The response includes the count of records deleted and total records found
+- If the subject doesn't exist, returns `404 SUBJECT_NOT_FOUND`
+
+This ensures immediate read suppression of all data while maintaining audit trail compliance.
+
 ### Configure Audit Log Retention
 Audit logs are retained for 2 years by default. To enable automatic deletion:
 
@@ -276,11 +308,5 @@ awslocal dynamodb query \
   --scan-index-forward false
 ```
 
-## Planned Features
-
-The following API endpoint is planned for future updates:
-
-- **Subject Erasure** – `DELETE /subjects/{subjectId}` to mark subject for erasure and trigger deletion of all records
-
-### Documentation
+## Documentation
 The full design (detailed flows, API shapes, and low-level sweeper design lives here): [Design Document](./doc/design.md)

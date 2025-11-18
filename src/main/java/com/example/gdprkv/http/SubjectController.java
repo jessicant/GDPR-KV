@@ -1,12 +1,15 @@
 package com.example.gdprkv.http;
 
 import com.example.gdprkv.models.Subject;
+import com.example.gdprkv.requests.DeleteSubjectServiceRequest;
 import com.example.gdprkv.requests.PutSubjectHttpRequest;
 import com.example.gdprkv.requests.PutSubjectServiceRequest;
 import com.example.gdprkv.service.AuditLogService;
 import com.example.gdprkv.service.SubjectService;
+import com.example.gdprkv.service.SubjectService.SubjectDeletionResult;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -55,6 +58,43 @@ public class SubjectController {
         return ResponseEntity.ok()
                 .header("X-Request-Id", subject.getRequestId())
                 .body(map(subject));
+    }
+
+    @DeleteMapping("/subjects/{subjectId}")
+    public ResponseEntity<SubjectDeletionResponse> deleteSubject(
+            @PathVariable String subjectId,
+            @RequestHeader(value = "X-Request-Id", required = false) String requestId
+    ) {
+        String effectiveRequestId = (requestId == null || requestId.isBlank())
+                ? UUID.randomUUID().toString()
+                : requestId;
+
+        DeleteSubjectServiceRequest deleteRequest = new DeleteSubjectServiceRequest(
+                subjectId, effectiveRequestId);
+
+        // Capture the client intent before we validate or attempt deletion.
+        auditLogService.recordSubjectErasureRequested(subjectId, effectiveRequestId);
+
+        SubjectDeletionResult result;
+        try {
+            result = subjectService.deleteSubject(deleteRequest);
+            auditLogService.recordSubjectErasureStarted(subjectId, effectiveRequestId, result.totalRecords());
+        } catch (RuntimeException ex) {
+            // Persist a failure event so the audit log reflects the rejected deletion.
+            auditLogService.recordSubjectErasureFailure(subjectId, effectiveRequestId, ex.getMessage());
+            throw ex;
+        }
+
+        // Log completion with the count of records deleted
+        auditLogService.recordSubjectErasureCompleted(subjectId, effectiveRequestId, result.recordsDeleted());
+
+        return ResponseEntity.ok()
+                .header("X-Request-Id", effectiveRequestId)
+                .body(new SubjectDeletionResponse(
+                        map(result.subject()),
+                        result.recordsDeleted(),
+                        result.totalRecords()
+                ));
     }
 
     private SubjectResponse map(Subject subject) {

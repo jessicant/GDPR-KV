@@ -7,17 +7,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.example.gdprkv.access.AuditEventAccess;
 import com.example.gdprkv.access.DynamoAuditEventAccess;
+import com.example.gdprkv.access.DynamoRecordAccess;
 import com.example.gdprkv.access.DynamoSubjectAccess;
+import com.example.gdprkv.access.PolicyAccess;
+import com.example.gdprkv.access.RecordAccess;
 import com.example.gdprkv.access.SubjectAccess;
 import com.example.gdprkv.models.AuditEvent;
+import com.example.gdprkv.models.Policy;
+import com.example.gdprkv.models.Record;
 import com.example.gdprkv.models.Subject;
 import com.example.gdprkv.requests.PutSubjectHttpRequest;
 import com.example.gdprkv.service.AuditLogService;
+import com.example.gdprkv.service.PolicyDrivenRecordService;
 import com.example.gdprkv.service.SubjectService;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeAll;
@@ -41,8 +49,10 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.CreateTableRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.GetItemResponse;
+import software.amazon.awssdk.services.dynamodb.model.GlobalSecondaryIndex;
 import software.amazon.awssdk.services.dynamodb.model.KeySchemaElement;
 import software.amazon.awssdk.services.dynamodb.model.KeyType;
+import software.amazon.awssdk.services.dynamodb.model.ProvisionedThroughput;
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException;
 import software.amazon.awssdk.services.dynamodb.model.ScalarAttributeType;
 
@@ -64,6 +74,9 @@ class SubjectControllerDynamoIntegrationTest {
     private DynamoDbClient dynamo;
     private DynamoDbEnhancedClient enhancedClient;
     private SubjectAccess subjectAccess;
+    private RecordAccess recordAccess;
+    private InMemoryPolicyAccess policyAccess;
+    private PolicyDrivenRecordService recordService;
     private SubjectService subjectService;
     private AuditEventAccess auditAccess;
     private AuditLogService auditLogService;
@@ -81,11 +94,22 @@ class SubjectControllerDynamoIntegrationTest {
                 .build();
         enhancedClient = DynamoDbEnhancedClient.builder().dynamoDbClient(dynamo).build();
         ensureSubjectsTable();
+        ensureRecordsTable();
         ensureAuditEventsTable();
 
         subjectAccess = new DynamoSubjectAccess(enhancedClient);
+        recordAccess = new DynamoRecordAccess(enhancedClient);
         auditAccess = new DynamoAuditEventAccess(enhancedClient);
-        subjectService = new SubjectService(subjectAccess, clock);
+
+        // Set up policy access with a test policy
+        policyAccess = new InMemoryPolicyAccess();
+        policyAccess.save(Policy.builder()
+                .purpose("test_purpose")
+                .retentionDays(30)
+                .build());
+
+        recordService = new PolicyDrivenRecordService(policyAccess, recordAccess, subjectAccess, clock);
+        subjectService = new SubjectService(subjectAccess, recordAccess, recordService, clock);
         auditLogService = new AuditLogService(auditAccess, clock);
         controller = new SubjectController(subjectService, auditLogService);
     }
@@ -228,6 +252,157 @@ class SubjectControllerDynamoIntegrationTest {
         assertNull(completedEvent.getDetails());
     }
 
+    @Test
+    @DisplayName("DELETE subject with no records marks subject for erasure")
+    void deleteSubjectNoRecords() {
+        String subjectId = "test_delete_" + UUID.randomUUID().toString().substring(0, 8);
+
+        // Create a subject first
+        Subject subject = Subject.builder()
+                .subjectId(subjectId)
+                .createdAt(clock.millis())
+                .residency("US")
+                .requestId("create_req")
+                .build();
+        subjectAccess.save(subject);
+
+        // Delete the subject
+        ResponseEntity<SubjectDeletionResponse> response = controller.deleteSubject(subjectId, "delete_req");
+
+        assertEquals(200, response.getStatusCode().value());
+        SubjectDeletionResponse body = response.getBody();
+        assertNotNull(body);
+        assertEquals(subjectId, body.subject().subjectId());
+        assertTrue(body.subject().erasureInProgress());
+        assertNotNull(body.subject().erasureRequestedAt());
+        assertEquals(clock.millis(), body.subject().erasureRequestedAt());
+        assertEquals(0, body.recordsDeleted());
+        assertEquals(0, body.totalRecords());
+
+        // Verify subject is marked for erasure in database
+        Optional<Subject> persisted = subjectAccess.findBySubjectId(subjectId);
+        assertTrue(persisted.isPresent());
+        assertTrue(persisted.get().getErasureInProgress());
+        assertEquals(clock.millis(), persisted.get().getErasureRequestedAt());
+    }
+
+    @Test
+    @DisplayName("DELETE subject with non-existent ID throws GdprKvException")
+    void deleteSubjectNotFound() {
+        String nonExistentId = "nonexistent_" + UUID.randomUUID().toString().substring(0, 8);
+
+        try {
+            controller.deleteSubject(nonExistentId, "delete_req");
+            throw new AssertionError("Expected GdprKvException to be thrown");
+        } catch (com.example.gdprkv.service.GdprKvException ex) {
+            assertEquals(com.example.gdprkv.service.GdprKvException.Code.SUBJECT_NOT_FOUND, ex.getCode());
+            assertTrue(ex.getMessage().contains(nonExistentId));
+        }
+    }
+
+    @Test
+    @DisplayName("DELETE subject with records tombstones all records")
+    void deleteSubjectWithRecords() {
+        String subjectId = "test_delete_records_" + UUID.randomUUID().toString().substring(0, 8);
+
+        // Create subject
+        Subject subject = Subject.builder()
+                .subjectId(subjectId)
+                .createdAt(clock.millis())
+                .residency("US")
+                .requestId("create_req")
+                .build();
+        subjectAccess.save(subject);
+
+        // Create some records for this subject
+        Record record1 = Record.builder()
+                .subjectId(subjectId)
+                .recordKey("key1")
+                .valueObject("data1")
+                .purpose("test_purpose")
+                .version(1L)
+                .createdAt(clock.millis())
+                .requestId("rec1_req")
+                .build();
+        Record record2 = Record.builder()
+                .subjectId(subjectId)
+                .recordKey("key2")
+                .valueObject("data2")
+                .purpose("test_purpose")
+                .version(1L)
+                .createdAt(clock.millis())
+                .requestId("rec2_req")
+                .build();
+        recordAccess.save(record1);
+        recordAccess.save(record2);
+
+        // Delete the subject
+        ResponseEntity<SubjectDeletionResponse> response = controller.deleteSubject(subjectId, "delete_req");
+
+        assertEquals(200, response.getStatusCode().value());
+        SubjectDeletionResponse body = response.getBody();
+        assertNotNull(body);
+        assertEquals(2, body.recordsDeleted());
+        assertEquals(2, body.totalRecords());
+        assertTrue(body.subject().erasureInProgress());
+
+        // Verify all records are tombstoned
+        List<Record> records = recordAccess.findAllBySubjectId(subjectId);
+        assertEquals(2, records.size());
+        for (Record record : records) {
+            assertTrue(record.getTombstoned());
+            assertNotNull(record.getTombstonedAt());
+        }
+    }
+
+    @Test
+    @DisplayName("DELETE subject creates audit events for erasure workflow")
+    void deleteSubjectCreatesAuditEvents() {
+        String subjectId = "test_delete_audit_" + UUID.randomUUID().toString().substring(0, 8);
+
+        // Create subject
+        Subject subject = Subject.builder()
+                .subjectId(subjectId)
+                .createdAt(clock.millis())
+                .residency("US")
+                .requestId("create_req")
+                .build();
+        subjectAccess.save(subject);
+
+        // Delete the subject
+        ResponseEntity<SubjectDeletionResponse> response = controller.deleteSubject(subjectId, "delete_req");
+
+        assertEquals(200, response.getStatusCode().value());
+
+        // Verify audit events
+        List<AuditEvent> events = enhancedClient.table("audit_events", TableSchema.fromBean(AuditEvent.class))
+                .scan().items().stream()
+                .filter(e -> e.getSubjectId().equals(subjectId) && e.getRequestId().equals("delete_req"))
+                .toList();
+
+        // Should have: REQUESTED, STARTED, COMPLETED
+        assertEquals(3, events.size());
+
+        AuditEvent requestedEvent = events.stream()
+                .filter(e -> e.getEventType() == AuditEvent.EventType.SUBJECT_ERASURE_REQUESTED)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("SUBJECT_ERASURE_REQUESTED event not found"));
+
+        AuditEvent startedEvent = events.stream()
+                .filter(e -> e.getEventType() == AuditEvent.EventType.SUBJECT_ERASURE_STARTED)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("SUBJECT_ERASURE_STARTED event not found"));
+
+        AuditEvent completedEvent = events.stream()
+                .filter(e -> e.getEventType() == AuditEvent.EventType.SUBJECT_ERASURE_COMPLETED)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("SUBJECT_ERASURE_COMPLETED event not found"));
+
+        assertEquals("delete_req", requestedEvent.getRequestId());
+        assertEquals("delete_req", startedEvent.getRequestId());
+        assertEquals("delete_req", completedEvent.getRequestId());
+    }
+
     private void ensureSubjectsTable() {
         try {
             dynamo.describeTable(b -> b.tableName("subjects"));
@@ -241,6 +416,33 @@ class SubjectControllerDynamoIntegrationTest {
                     .keySchema(KeySchemaElement.builder()
                             .attributeName("subject_id")
                             .keyType(KeyType.HASH)
+                            .build())
+                    .billingMode("PAY_PER_REQUEST")
+                    .build());
+        }
+    }
+
+    private void ensureRecordsTable() {
+        try {
+            dynamo.describeTable(b -> b.tableName("records"));
+        } catch (ResourceNotFoundException ex) {
+            dynamo.createTable(CreateTableRequest.builder()
+                    .tableName("records")
+                    .attributeDefinitions(
+                            AttributeDefinition.builder().attributeName("subject_id").attributeType(ScalarAttributeType.S).build(),
+                            AttributeDefinition.builder().attributeName("record_key").attributeType(ScalarAttributeType.S).build(),
+                            AttributeDefinition.builder().attributeName("purge_bucket").attributeType(ScalarAttributeType.S).build(),
+                            AttributeDefinition.builder().attributeName("purge_due_at").attributeType(ScalarAttributeType.N).build())
+                    .keySchema(
+                            KeySchemaElement.builder().attributeName("subject_id").keyType(KeyType.HASH).build(),
+                            KeySchemaElement.builder().attributeName("record_key").keyType(KeyType.RANGE).build())
+                    .globalSecondaryIndexes(GlobalSecondaryIndex.builder()
+                            .indexName("records_by_purge_due")
+                            .keySchema(
+                                    KeySchemaElement.builder().attributeName("purge_bucket").keyType(KeyType.HASH).build(),
+                                    KeySchemaElement.builder().attributeName("purge_due_at").keyType(KeyType.RANGE).build())
+                            .projection(b -> b.projectionType("KEYS_ONLY"))
+                            .provisionedThroughput(ProvisionedThroughput.builder().readCapacityUnits(1L).writeCapacityUnits(1L).build())
                             .build())
                     .billingMode("PAY_PER_REQUEST")
                     .build());
@@ -261,6 +463,22 @@ class SubjectControllerDynamoIntegrationTest {
                             KeySchemaElement.builder().attributeName("ts_ulid").keyType(KeyType.RANGE).build())
                     .billingMode("PAY_PER_REQUEST")
                     .build());
+        }
+    }
+
+    /**
+     * In-memory implementation of PolicyAccess for testing.
+     */
+    private static class InMemoryPolicyAccess implements PolicyAccess {
+        private final Map<String, Policy> store = new HashMap<>();
+
+        void save(Policy policy) {
+            store.put(policy.getPurpose(), policy);
+        }
+
+        @Override
+        public Optional<Policy> findByPurpose(String purpose) {
+            return Optional.ofNullable(store.get(purpose));
         }
     }
 }

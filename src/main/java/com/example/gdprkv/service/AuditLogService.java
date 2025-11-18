@@ -96,6 +96,28 @@ public class AuditLogService {
                 errorMessage == null ? null : Map.of("error", errorMessage));
     }
 
+    public void recordSubjectErasureRequested(String subjectId, String requestId) {
+        appendSubjectEvent(subjectId, requestId, AuditEvent.EventType.SUBJECT_ERASURE_REQUESTED, null);
+    }
+
+    public void recordSubjectErasureStarted(String subjectId, String requestId, int recordCount) {
+        appendSubjectEvent(subjectId, requestId,
+                AuditEvent.EventType.SUBJECT_ERASURE_STARTED,
+                Map.of("record_count", recordCount));
+    }
+
+    public void recordSubjectErasureCompleted(String subjectId, String requestId, int recordsDeleted) {
+        appendSubjectEvent(subjectId, requestId,
+                AuditEvent.EventType.SUBJECT_ERASURE_COMPLETED,
+                Map.of("records_deleted", recordsDeleted));
+    }
+
+    public void recordSubjectErasureFailure(String subjectId, String requestId, String errorMessage) {
+        appendSubjectEvent(subjectId, requestId,
+                AuditEvent.EventType.SUBJECT_ERASURE_FAILED,
+                errorMessage == null ? null : Map.of("error", errorMessage));
+    }
+
     /**
      * Appends an audit event for record operations, maintaining the per-subject hash chain.
      */
