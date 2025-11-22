@@ -16,5 +16,23 @@ public interface RecordAccess {
      */
     List<Record> findAllBySubjectId(String subjectId);
 
+    /**
+     * Finds tombstoned records that are due for purging using the records_by_purge_due GSI.
+     * Queries records in a specific purge bucket that have purge_due_at <= cutoffTimestamp.
+     *
+     * @param purgeBucket the purge bucket to query (e.g., "h#20250827T21")
+     * @param cutoffTimestamp records with purge_due_at <= this value will be returned
+     * @return list of records due for purging in the specified bucket
+     */
+    List<Record> findRecordsDueForPurge(String purgeBucket, long cutoffTimestamp);
+
     Record save(Record record);
+
+    /**
+     * Permanently deletes a record from the database.
+     * Used by the purge sweeper to physically remove tombstoned records.
+     *
+     * @param record the record to delete
+     */
+    void delete(Record record);
 }

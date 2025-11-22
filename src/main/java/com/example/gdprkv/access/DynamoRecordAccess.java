@@ -39,8 +39,30 @@ public class DynamoRecordAccess implements RecordAccess {
     }
 
     @Override
+    public List<Record> findRecordsDueForPurge(String purgeBucket, long cutoffTimestamp) {
+        return table.index("records_by_purge_due")
+                .query(r -> r.queryConditional(
+                        QueryConditional.sortLessThanOrEqualTo(
+                                Key.builder()
+                                        .partitionValue(purgeBucket)
+                                        .sortValue(cutoffTimestamp)
+                                        .build())))
+                .stream()
+                .flatMap(page -> page.items().stream())
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public Record save(Record record) {
         table.putItem(record);
         return record;
+    }
+
+    @Override
+    public void delete(Record record) {
+        table.deleteItem(Key.builder()
+                .partitionValue(record.getSubjectId())
+                .sortValue(record.getRecordKey())
+                .build());
     }
 }

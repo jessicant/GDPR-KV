@@ -5,6 +5,7 @@ import com.example.gdprkv.models.AuditEvent;
 import com.example.gdprkv.models.Record;
 import com.example.gdprkv.models.Subject;
 import java.time.Clock;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -170,6 +171,29 @@ public class AuditLogService {
                 .build();
 
         auditEventAccess.put(event);
+    }
+
+    /**
+     * Records that a purge candidate was identified by the sweeper.
+     */
+    public void recordPurgeCandidateIdentified(String subjectId, String recordKey, String requestId) {
+        appendRecordEvent(subjectId, recordKey, null, requestId, AuditEvent.EventType.PURGE_CANDIDATE_IDENTIFIED, null);
+    }
+
+    /**
+     * Records successful purge of a record.
+     */
+    public void recordPurgeCandidateSuccessful(String subjectId, String recordKey, String requestId) {
+        appendRecordEvent(subjectId, recordKey, null, requestId, AuditEvent.EventType.PURGE_CANDIDATE_SUCCESSFUL, null);
+    }
+
+    /**
+     * Records failed purge attempt.
+     */
+    public void recordPurgeCandidateFailed(String subjectId, String recordKey, String requestId, String errorMessage) {
+        Map<String, Object> details = new HashMap<>();
+        details.put("error", errorMessage);
+        appendRecordEvent(subjectId, recordKey, null, requestId, AuditEvent.EventType.PURGE_CANDIDATE_FAILED, details);
     }
 
     /**

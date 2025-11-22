@@ -190,9 +190,22 @@ class PolicyDrivenRecordServiceTest {
         }
 
         @Override
+        public List<Record> findRecordsDueForPurge(String purgeBucket, long cutoffTimestamp) {
+            return store.values().stream()
+                    .filter(r -> r.getPurgeBucket() != null && r.getPurgeBucket().equals(purgeBucket))
+                    .filter(r -> r.getPurgeDueAt() != null && r.getPurgeDueAt() <= cutoffTimestamp)
+                    .collect(java.util.stream.Collectors.toList());
+        }
+
+        @Override
         public Record save(Record record) {
             store.put(key(record.getSubjectId(), record.getRecordKey()), record);
             return record;
+        }
+
+        @Override
+        public void delete(Record record) {
+            store.remove(key(record.getSubjectId(), record.getRecordKey()));
         }
 
         private String key(String subjectId, String recordKey) {

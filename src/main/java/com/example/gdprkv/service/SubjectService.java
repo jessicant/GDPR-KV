@@ -10,6 +10,7 @@ import com.example.gdprkv.requests.PutSubjectServiceRequest;
 import java.time.Clock;
 import java.util.List;
 import java.util.Objects;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 
@@ -25,6 +26,7 @@ public class SubjectService {
     private final PolicyDrivenRecordService recordService;
     private final Clock clock;
 
+    @Autowired
     public SubjectService(SubjectAccess subjectAccess,
                          RecordAccess recordAccess,
                          PolicyDrivenRecordService recordService,

@@ -7,7 +7,8 @@ A subject-centric layer on DynamoDB that adds GDPR-oriented behaviors: right to 
 ## Features
 
 - **Subject-Centric Mapping** – enumerate all records for a data subject via `findAllBySubjectId()`.
-- **Right to Erasure** – immediate read suppression (tombstone) plus background purge.
+- **Right to Erasure** – immediate read suppression (tombstone) plus background purge sweeper for physical deletion.
+- **Automated Purge Sweeper** – scheduled job permanently deletes tombstoned records after retention expires using efficient GSI queries.
 - **Retention Enforcement** – records deleted when retention expires; scheduled job deletes audit events older than configured retention period (default: 2 years).
 - **Audit Trail** – append-only, hash-chained events for create, read, update, delete, and purge; retrieve complete audit history via `findAllBySubjectId()`.
 - **Efficient Purging** – GSI `records_by_purge_due` uses `purge_bucket` (UTC hour shard) and `purge_due_at` to avoid scans or hot partitions.
@@ -276,6 +277,26 @@ What happens when you delete a subject:
 - If the subject doesn't exist, returns `404 SUBJECT_NOT_FOUND`
 
 This ensures immediate read suppression of all data while maintaining audit trail compliance.
+
+### Configure Purge Sweeper (Background Deletion)
+The purge sweeper permanently deletes tombstoned records after their retention period expires. This is **required for GDPR compliance** to ensure physical deletion of personal data.
+
+1. Edit `src/main/resources/application.yml`:
+   ```yaml
+   purge:
+     sweeper:
+       enabled: true  # Enable automatic purging
+       schedule: "0 */15 * * * *"  # Every 15 minutes (cron format)
+       lookback-hours: 24  # Number of hours of purge buckets to check
+   ```
+
+2. The sweeper will run on the configured schedule and:
+   - Query the `records_by_purge_due` GSI for expired records
+   - Permanently delete records past their `purge_due_at` timestamp
+   - Create audit events: `PURGE_CANDIDATE_IDENTIFIED`, `PURGE_CANDIDATE_SUCCESSFUL`, or `PURGE_CANDIDATE_FAILED`
+   - Process records in hourly buckets to avoid hot partitions
+
+The sweeper uses safety checks to ensure only tombstoned records past their retention are deleted.
 
 ### Configure Audit Log Retention
 Audit logs are retained for 2 years by default. To enable automatic deletion:
